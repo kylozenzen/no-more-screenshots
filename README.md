@@ -1,45 +1,24 @@
-# No More Screenshots — Netlify Demo v0
+# No More Screenshots — Netlify Demo
 
-A standalone, Netlify-ready demo for a client-facing content calendar review link.
+A focused PostIQ-style Snapshot demo:
 
-## What works
+1. See planned posts.
+2. Edit/import content.
+3. Generate a client review link.
+4. Let clients approve, request edits, or comment.
 
-- Sample data
-- CSV import
-- Manual post creation and editing
-- Client review view
-- Approve / Needs Edits / comments
-- Owner status dashboard
-- Static share links using URL-encoded Snapshot payloads
-- Strategy Snack Machine starter ideas
-- Netlify Function scaffold for Buffer scheduled post import
+## Deploy
 
-## Deploy to Netlify
+Drag this folder or ZIP into Netlify. `index.html`, `styles.css`, and `app.js` are at the root.
 
-1. Drag this folder or the ZIP into Netlify.
-2. Netlify should publish the root folder.
-3. The included `netlify/functions/buffer-proxy.js` will deploy as a serverless function.
+## What changed in this pass
 
-## Buffer import note
+- Simplified the app around the core flow: posts → generated link → client preview.
+- Reworked the UI to feel closer to PostIQ's Snapshot/review pattern.
+- Moved CSV/Buffer import into a drawer so the first screen is not busy.
+- Improved readability with softer dark text, bigger type, and lighter cards.
+- Kept static share links by encoding the Snapshot payload in the URL hash.
 
-This build includes a **manual token/API key-style Buffer import** through:
+## Buffer Import
 
-`/.netlify/functions/buffer-proxy`
-
-Set `BUFFER_GRAPHQL_ENDPOINT` in Netlify environment variables if Buffer's endpoint differs from the default:
-
-`https://graph.buffer.com/graphql`
-
-Full OAuth should be added after registering the final app URL and redirect URI with Buffer.
-
-## CSV format
-
-Supported columns:
-
-- date
-- time
-- platform/channel
-- caption/copy/text
-- media url/mediaUrl/asset/link
-- status
-- note/notes
+A lightweight `netlify/functions/buffer-proxy.js` scaffold is included. The demo still uses manual token-style import for testing. Full OAuth should be wired after the app has a final Netlify URL and registered Buffer redirect URI.

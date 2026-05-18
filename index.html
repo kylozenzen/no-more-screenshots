@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>No More Screenshots — Client Review Calendar Demo</title>
-  <meta name="description" content="Import planned content from Buffer or CSV, create a clean client review link, and collect approvals without sending screenshots." />
-  <meta name="theme-color" content="#111827" />
+  <title>No More Screenshots — Content Calendar Snapshot Demo</title>
+  <meta name="description" content="A clean PostIQ-style Snapshot demo: import content, review posts, generate a client link, and collect approvals." />
+  <meta name="theme-color" content="#fff7ed" />
   <meta property="og:title" content="No More Screenshots" />
-  <meta property="og:description" content="Client-ready content calendar review links without the screenshot circus." />
+  <meta property="og:description" content="See planned posts and generate a clean client review link. No screenshots required." />
   <meta property="og:type" content="website" />
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="stylesheet" href="./styles.css" />
@@ -15,207 +15,190 @@
 <body>
   <div id="toast" class="toast" aria-live="polite"></div>
 
-  <header class="topbar">
-    <a class="brand" href="./">
+  <aside class="side" id="sideNav">
+    <a class="brand" href="./" aria-label="No More Screenshots home">
       <span class="brand-mark">✓</span>
       <span>
         <strong>No More Screenshots</strong>
-        <small>Demo v0 · Netlify-ready</small>
+        <small>Snapshot review demo</small>
       </span>
     </a>
-    <nav class="tabs" aria-label="App sections">
-      <button class="tab active" data-view="builder">Builder</button>
-      <button class="tab" data-view="review">Client view</button>
-      <button class="tab" data-view="status">Status</button>
-      <button class="tab" data-view="settings">Import</button>
-    </nav>
-  </header>
 
-  <main class="shell">
-    <section class="hero-card">
+    <div class="side-card">
+      <p class="side-kicker">Current Snapshot</p>
+      <h2 id="sideProjectName">Acme Summer Campaign</h2>
+      <p id="sideProjectMeta">4 posts ready to review</p>
+      <button class="btn primary full" id="sideGenerateLink">Generate link</button>
+      <button class="btn ghost full" id="sideLoadSample">Load sample posts</button>
+    </div>
+
+    <nav class="nav" aria-label="Demo views">
+      <button class="nav-btn active" data-view="planView">Plan</button>
+      <button class="nav-btn" data-view="shareView">Share Link</button>
+      <button class="nav-btn" data-view="clientView">Client Preview</button>
+      <button class="nav-btn" data-view="statusView">Status</button>
+    </nav>
+
+    <div class="side-footer">
+      <button class="link-btn" id="openImportDrawer">Import CSV / Buffer</button>
+      <p>Static Netlify demo. No database required.</p>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="mobile-top">
+      <button class="icon-menu" id="toggleSide" aria-label="Open menu">☰</button>
       <div>
-        <div class="eyebrow"><span></span> Standalone Snapshot demo</div>
-        <h1>Turn a messy content calendar into a clean client review link.</h1>
-        <p>
-          Import sample data, upload a CSV, or test Buffer import. Edit the plan, generate a shareable review URL, and let clients approve or request edits.
-        </p>
+        <strong>No More Screenshots</strong>
+        <small>Snapshot demo</small>
+      </div>
+      <button class="btn primary compact" id="mobileGenerateLink">Link</button>
+    </header>
+
+    <section class="hero">
+      <div>
+        <div class="eyebrow"><span></span> PostIQ-style Snapshot flow</div>
+        <h1>See the posts. Generate the link. Send the calm version.</h1>
+        <p>The whole MVP is now centered on the kicker: a simple content queue that turns into a client-ready review link.</p>
       </div>
       <div class="hero-actions">
-        <button class="btn primary" id="generateLinkTop">Generate review link</button>
-        <button class="btn" id="loadSampleTop">Load sample plan</button>
+        <button class="btn primary" id="heroGenerateLink">Generate review link</button>
+        <button class="btn" id="heroClientPreview">Preview client view</button>
       </div>
     </section>
 
-    <section id="builder" class="view active">
-      <div class="grid two">
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <h2>Project setup</h2>
-              <p>Name the calendar and add a short note for the client.</p>
-            </div>
+    <section id="planView" class="view active">
+      <div class="toolbar panel">
+        <div class="setup-fields">
+          <label>
+            Snapshot title
+            <input id="projectName" value="Acme Summer Campaign" />
+          </label>
+          <label>
+            Range label
+            <input id="rangeLabel" value="June 2026 content plan" />
+          </label>
+        </div>
+        <label class="intro-field">
+          Client note
+          <textarea id="intro">Here is the upcoming content plan for review. Approve what looks good or request edits where needed.</textarea>
+        </label>
+      </div>
+
+      <div class="stats-row" id="metrics"></div>
+
+      <section class="panel posts-panel">
+        <div class="panel-head">
+          <div>
+            <h2>Posts in this Snapshot</h2>
+            <p>Edit the cards, pick statuses, then generate the link.</p>
           </div>
-          <div class="form-grid">
-            <label>
-              Client / project name
-              <input id="projectName" value="Acme Summer Campaign" />
-            </label>
-            <label>
-              Review range label
-              <input id="rangeLabel" value="June 2026 content plan" />
-            </label>
-            <label class="full">
-              Client intro
-              <textarea id="intro">Here is the upcoming content plan for review. Approve what looks good, request edits where needed, and please do not ask for screenshots because we are healing as a society.</textarea>
-            </label>
+          <div class="actions tight">
+            <button class="btn" id="addPost">Add post</button>
+            <button class="btn ghost" id="loadSample">Sample</button>
           </div>
-          <div class="actions">
-            <button class="btn primary" id="generateLink">Generate review link</button>
+        </div>
+
+        <div class="filter-row" id="filters">
+          <button class="chip active" data-filter="all">All</button>
+          <button class="chip" data-filter="Draft">Draft</button>
+          <button class="chip" data-filter="Review">Review</button>
+          <button class="chip" data-filter="Approved">Approved</button>
+          <button class="chip" data-filter="Needs Edits">Needs Edits</button>
+        </div>
+
+        <div id="postList" class="post-list"></div>
+      </section>
+    </section>
+
+    <section id="shareView" class="view">
+      <section class="panel share-panel">
+        <div class="share-copy">
+          <div class="eyebrow"><span></span> Static review link</div>
+          <h2>Generate a client-ready Snapshot link.</h2>
+          <p>This creates a static URL with the current posts encoded in the link. Anyone with the link can view the Snapshot. Later edits require generating a new link.</p>
+        </div>
+        <div class="share-box">
+          <button class="btn primary big" id="generateLink">Generate review link</button>
+          <input id="shareLink" readonly placeholder="Generated link appears here" />
+          <div class="actions tight">
             <button class="btn" id="copyLink" disabled>Copy link</button>
+            <button class="btn ghost" id="openLink" disabled>Open link</button>
           </div>
-          <input id="shareLink" class="share-output" readonly placeholder="Generated review link will appear here" />
-          <p class="tiny">Demo note: this version stores the Snapshot payload inside the URL, so it can be deployed as a static Netlify app with no database.</p>
-        </section>
-
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <h2>Import content</h2>
-              <p>Start from sample data, CSV, Buffer token import, or quick manual cards.</p>
-            </div>
-          </div>
-          <div class="import-stack">
-            <button class="btn primary" id="loadSample">Load sample data</button>
-            <label class="upload-btn">
-              Upload CSV
-              <input id="csvUpload" type="file" accept=".csv,text/csv" />
-            </label>
-            <button class="btn" id="addPost">Add manual post</button>
-            <button class="btn" id="clearAll">Clear all</button>
-          </div>
-          <div class="hint-card">
-            <strong>CSV columns supported:</strong>
-            <span>date, time, platform, caption/copy/text, media url, status, note</span>
-            <a href="./sample-calendar.csv" download>Download sample CSV →</a>
-          </div>
-        </section>
-      </div>
-
-      <section class="metrics" id="metrics"></section>
-
-      <section class="panel">
-        <div class="panel-head split">
-          <div>
-            <h2>Calendar cards</h2>
-            <p>Edit, approve, or mark posts as needing changes before sharing.</p>
-          </div>
-          <div class="filters">
-            <button class="chip active" data-filter="all">All</button>
-            <button class="chip" data-filter="Review">Review</button>
-            <button class="chip" data-filter="Approved">Approved</button>
-            <button class="chip" data-filter="Needs Edits">Needs edits</button>
-          </div>
+          <p class="tiny" id="shareMeta">No account needed. No client login. No screenshot spiral.</p>
         </div>
-        <div id="postGrid" class="post-grid"></div>
       </section>
     </section>
 
-    <section id="review" class="view">
-      <section class="review-shell">
-        <div class="review-hero">
-          <div>
-            <div class="eyebrow"><span></span> Client review preview</div>
-            <h2 id="reviewTitle">Acme Summer Campaign</h2>
-            <p id="reviewIntro"></p>
-          </div>
-          <div class="approval-score" id="approvalScore"></div>
+    <section id="clientView" class="view">
+      <section class="client-shell">
+        <div class="snap-hero">
+          <a href="./" class="snap-brand">No More Screenshots <span>Snapshot</span></a>
+          <h2 id="reviewTitle">Acme Summer Campaign</h2>
+          <p id="reviewIntro"></p>
+          <div class="snap-stats" id="approvalScore"></div>
         </div>
-        <div class="calendar-strip" id="calendarStrip"></div>
-        <div id="reviewGrid" class="post-grid"></div>
+        <div class="mini-calendar" id="calendarStrip"></div>
+        <div id="reviewList" class="post-list client"></div>
       </section>
     </section>
 
-    <section id="status" class="view">
+    <section id="statusView" class="view">
       <section class="panel">
         <div class="panel-head">
           <div>
-            <h2>Owner status dashboard</h2>
-            <p>See what is approved, what needs edits, and where clients left comments.</p>
+            <h2>Approval status</h2>
+            <p>Owner-side summary after the client starts reviewing.</p>
           </div>
         </div>
-        <div class="metrics" id="statusMetrics"></div>
+        <div class="stats-row" id="statusMetrics"></div>
         <div id="statusList" class="status-list"></div>
       </section>
     </section>
+  </main>
 
-    <section id="settings" class="view">
-      <div class="grid two">
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <h2>Buffer import</h2>
-              <p>For now: manual token/API-key style import via Netlify Function. OAuth scaffolding can be wired once the Buffer app redirect is registered.</p>
-            </div>
-          </div>
-          <label>
-            Buffer token / API key
-            <input id="bufferToken" type="password" placeholder="Paste token for testing" />
+  <dialog id="importDrawer" class="drawer-dialog">
+    <form method="dialog" class="drawer-card">
+      <div class="panel-head split">
+        <div>
+          <h2>Import content</h2>
+          <p>Start with CSV or test a Buffer token import. Keep the demo focused on posts → link.</p>
+        </div>
+        <button class="icon-btn" value="cancel" aria-label="Close">×</button>
+      </div>
+
+      <div class="import-grid">
+        <section class="import-card">
+          <h3>CSV import</h3>
+          <p>Use columns like date, time, platform, caption, media url, status, note.</p>
+          <label class="upload-btn">
+            Upload CSV
+            <input id="csvUpload" type="file" accept=".csv,text/csv" />
           </label>
-          <div class="actions">
-            <button class="btn primary" id="saveToken">Save token locally</button>
-            <button class="btn" id="bufferImport">Import scheduled posts</button>
-            <button class="btn danger" id="clearToken">Clear token</button>
+          <a href="./sample-calendar.csv" download>Download sample CSV →</a>
+        </section>
+
+        <section class="import-card">
+          <h3>Buffer import</h3>
+          <p>Manual token import is included for testing. Full OAuth needs registered redirect URLs.</p>
+          <input id="bufferToken" type="password" placeholder="Paste Buffer token for testing" />
+          <div class="actions tight">
+            <button class="btn" id="saveToken" type="button">Save</button>
+            <button class="btn primary" id="bufferImport" type="button">Import</button>
+            <button class="btn danger" id="clearToken" type="button">Clear</button>
           </div>
           <p id="bufferStatus" class="tiny"></p>
-          <div class="hint-card">
-            <strong>OAuth-ready note:</strong>
-            <span>The included code isolates Buffer calls through <code>/.netlify/functions/buffer-proxy</code>, matching the safer PostIQ pattern. Full OAuth needs a registered app + redirect URL.</span>
-          </div>
-        </section>
-
-        <section class="panel snack">
-          <div class="panel-head">
-            <div>
-              <h2>Strategy Snack Machine</h2>
-              <p>Need to fill a calendar gap? Generate a few starter ideas, then add them as draft cards.</p>
-            </div>
-          </div>
-          <div class="form-grid">
-            <label>
-              Brand / client
-              <input id="snackBrand" placeholder="Acme" />
-            </label>
-            <label>
-              Goal
-              <select id="snackGoal">
-                <option>Grow audience</option>
-                <option>Drive sales</option>
-                <option>Build trust</option>
-                <option>Launch product</option>
-                <option>Promote event</option>
-              </select>
-            </label>
-            <label class="full">
-              Audience
-              <input id="snackAudience" placeholder="busy founders, local families, agency clients..." />
-            </label>
-          </div>
-          <div class="actions">
-            <button class="btn primary" id="generateSnacks">Generate snack pack</button>
-            <button class="btn" id="addSnacks">Add ideas as drafts</button>
-          </div>
-          <div id="snackOutput" class="snack-output"></div>
         </section>
       </div>
-    </section>
-  </main>
+    </form>
+  </dialog>
 
   <dialog id="editDialog">
     <form method="dialog" class="dialog-card">
       <div class="panel-head split">
         <div>
           <h2>Edit post</h2>
-          <p>Polish this card before the client sees it.</p>
+          <p>Polish this post before sharing the Snapshot.</p>
         </div>
         <button class="icon-btn" value="cancel" aria-label="Close">×</button>
       </div>
@@ -238,7 +221,7 @@
       </div>
       <div class="actions right">
         <button class="btn" value="cancel">Cancel</button>
-        <button class="btn primary" id="saveEdit" value="default">Save changes</button>
+        <button class="btn primary" id="saveEdit" value="default">Save post</button>
       </div>
     </form>
   </dialog>
