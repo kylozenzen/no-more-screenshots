@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>No More Screenshots — Client Review Calendar Demo</title>
+  <meta name="description" content="Import planned content from Buffer or CSV, create a clean client review link, and collect approvals without sending screenshots." />
+  <meta name="theme-color" content="#111827" />
+  <meta property="og:title" content="No More Screenshots" />
+  <meta property="og:description" content="Client-ready content calendar review links without the screenshot circus." />
+  <meta property="og:type" content="website" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div id="toast" class="toast" aria-live="polite"></div>
+
+  <header class="topbar">
+    <a class="brand" href="./">
+      <span class="brand-mark">✓</span>
+      <span>
+        <strong>No More Screenshots</strong>
+        <small>Demo v0 · Netlify-ready</small>
+      </span>
+    </a>
+    <nav class="tabs" aria-label="App sections">
+      <button class="tab active" data-view="builder">Builder</button>
+      <button class="tab" data-view="review">Client view</button>
+      <button class="tab" data-view="status">Status</button>
+      <button class="tab" data-view="settings">Import</button>
+    </nav>
+  </header>
+
+  <main class="shell">
+    <section class="hero-card">
+      <div>
+        <div class="eyebrow"><span></span> Standalone Snapshot demo</div>
+        <h1>Turn a messy content calendar into a clean client review link.</h1>
+        <p>
+          Import sample data, upload a CSV, or test Buffer import. Edit the plan, generate a shareable review URL, and let clients approve or request edits.
+        </p>
+      </div>
+      <div class="hero-actions">
+        <button class="btn primary" id="generateLinkTop">Generate review link</button>
+        <button class="btn" id="loadSampleTop">Load sample plan</button>
+      </div>
+    </section>
+
+    <section id="builder" class="view active">
+      <div class="grid two">
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Project setup</h2>
+              <p>Name the calendar and add a short note for the client.</p>
+            </div>
+          </div>
+          <div class="form-grid">
+            <label>
+              Client / project name
+              <input id="projectName" value="Acme Summer Campaign" />
+            </label>
+            <label>
+              Review range label
+              <input id="rangeLabel" value="June 2026 content plan" />
+            </label>
+            <label class="full">
+              Client intro
+              <textarea id="intro">Here is the upcoming content plan for review. Approve what looks good, request edits where needed, and please do not ask for screenshots because we are healing as a society.</textarea>
+            </label>
+          </div>
+          <div class="actions">
+            <button class="btn primary" id="generateLink">Generate review link</button>
+            <button class="btn" id="copyLink" disabled>Copy link</button>
+          </div>
+          <input id="shareLink" class="share-output" readonly placeholder="Generated review link will appear here" />
+          <p class="tiny">Demo note: this version stores the Snapshot payload inside the URL, so it can be deployed as a static Netlify app with no database.</p>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Import content</h2>
+              <p>Start from sample data, CSV, Buffer token import, or quick manual cards.</p>
+            </div>
+          </div>
+          <div class="import-stack">
+            <button class="btn primary" id="loadSample">Load sample data</button>
+            <label class="upload-btn">
+              Upload CSV
+              <input id="csvUpload" type="file" accept=".csv,text/csv" />
+            </label>
+            <button class="btn" id="addPost">Add manual post</button>
+            <button class="btn" id="clearAll">Clear all</button>
+          </div>
+          <div class="hint-card">
+            <strong>CSV columns supported:</strong>
+            <span>date, time, platform, caption/copy/text, media url, status, note</span>
+            <a href="./sample-calendar.csv" download>Download sample CSV →</a>
+          </div>
+        </section>
+      </div>
+
+      <section class="metrics" id="metrics"></section>
+
+      <section class="panel">
+        <div class="panel-head split">
+          <div>
+            <h2>Calendar cards</h2>
+            <p>Edit, approve, or mark posts as needing changes before sharing.</p>
+          </div>
+          <div class="filters">
+            <button class="chip active" data-filter="all">All</button>
+            <button class="chip" data-filter="Review">Review</button>
+            <button class="chip" data-filter="Approved">Approved</button>
+            <button class="chip" data-filter="Needs Edits">Needs edits</button>
+          </div>
+        </div>
+        <div id="postGrid" class="post-grid"></div>
+      </section>
+    </section>
+
+    <section id="review" class="view">
+      <section class="review-shell">
+        <div class="review-hero">
+          <div>
+            <div class="eyebrow"><span></span> Client review preview</div>
+            <h2 id="reviewTitle">Acme Summer Campaign</h2>
+            <p id="reviewIntro"></p>
+          </div>
+          <div class="approval-score" id="approvalScore"></div>
+        </div>
+        <div class="calendar-strip" id="calendarStrip"></div>
+        <div id="reviewGrid" class="post-grid"></div>
+      </section>
+    </section>
+
+    <section id="status" class="view">
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Owner status dashboard</h2>
+            <p>See what is approved, what needs edits, and where clients left comments.</p>
+          </div>
+        </div>
+        <div class="metrics" id="statusMetrics"></div>
+        <div id="statusList" class="status-list"></div>
+      </section>
+    </section>
+
+    <section id="settings" class="view">
+      <div class="grid two">
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Buffer import</h2>
+              <p>For now: manual token/API-key style import via Netlify Function. OAuth scaffolding can be wired once the Buffer app redirect is registered.</p>
+            </div>
+          </div>
+          <label>
+            Buffer token / API key
+            <input id="bufferToken" type="password" placeholder="Paste token for testing" />
+          </label>
+          <div class="actions">
+            <button class="btn primary" id="saveToken">Save token locally</button>
+            <button class="btn" id="bufferImport">Import scheduled posts</button>
+            <button class="btn danger" id="clearToken">Clear token</button>
+          </div>
+          <p id="bufferStatus" class="tiny"></p>
+          <div class="hint-card">
+            <strong>OAuth-ready note:</strong>
+            <span>The included code isolates Buffer calls through <code>/.netlify/functions/buffer-proxy</code>, matching the safer PostIQ pattern. Full OAuth needs a registered app + redirect URL.</span>
+          </div>
+        </section>
+
+        <section class="panel snack">
+          <div class="panel-head">
+            <div>
+              <h2>Strategy Snack Machine</h2>
+              <p>Need to fill a calendar gap? Generate a few starter ideas, then add them as draft cards.</p>
+            </div>
+          </div>
+          <div class="form-grid">
+            <label>
+              Brand / client
+              <input id="snackBrand" placeholder="Acme" />
+            </label>
+            <label>
+              Goal
+              <select id="snackGoal">
+                <option>Grow audience</option>
+                <option>Drive sales</option>
+                <option>Build trust</option>
+                <option>Launch product</option>
+                <option>Promote event</option>
+              </select>
+            </label>
+            <label class="full">
+              Audience
+              <input id="snackAudience" placeholder="busy founders, local families, agency clients..." />
+            </label>
+          </div>
+          <div class="actions">
+            <button class="btn primary" id="generateSnacks">Generate snack pack</button>
+            <button class="btn" id="addSnacks">Add ideas as drafts</button>
+          </div>
+          <div id="snackOutput" class="snack-output"></div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="editDialog">
+    <form method="dialog" class="dialog-card">
+      <div class="panel-head split">
+        <div>
+          <h2>Edit post</h2>
+          <p>Polish this card before the client sees it.</p>
+        </div>
+        <button class="icon-btn" value="cancel" aria-label="Close">×</button>
+      </div>
+      <input id="editId" type="hidden" />
+      <div class="form-grid">
+        <label>Date <input id="editDate" type="date" /></label>
+        <label>Time <input id="editTime" /></label>
+        <label>Platform <input id="editPlatform" /></label>
+        <label>Status
+          <select id="editStatus">
+            <option>Draft</option>
+            <option>Review</option>
+            <option>Approved</option>
+            <option>Needs Edits</option>
+          </select>
+        </label>
+        <label class="full">Caption <textarea id="editCaption"></textarea></label>
+        <label class="full">Media URL <input id="editMediaUrl" /></label>
+        <label class="full">Note <input id="editNote" /></label>
+      </div>
+      <div class="actions right">
+        <button class="btn" value="cancel">Cancel</button>
+        <button class="btn primary" id="saveEdit" value="default">Save changes</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>

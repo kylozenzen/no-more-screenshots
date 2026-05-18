@@ -1,0 +1,9 @@
+{
+  "name": "No More Screenshots",
+  "short_name": "NMS",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fff7ed",
+  "theme_color": "#111827",
+  "icons": []
+}
