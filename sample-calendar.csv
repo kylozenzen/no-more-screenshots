@@ -1,5 +1,8 @@
-date,time,platform,caption,mediaUrl,note
-2026-06-03,9:00 AM,Instagram,"A behind-the-scenes look at the summer campaign setup.","https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=1200&auto=format&fit=crop","Feature this as the first post of the week."
-2026-06-04,1:30 PM,LinkedIn,"Most content calendars fail because they organize posts, not decisions.","","Good candidate for founder/team voice."
-2026-06-06,11:15 AM,TikTok,"POV: the client can see the calendar without asking for screenshots.","https://images.unsplash.com/photo-1497366754035-f200968a6e72?q=80&w=1200&auto=format&fit=crop","Use trend audio if still relevant."
-2026-06-07,4:00 PM,Threads,"Content calendar sharing should not require three Slack threads and an emotionally damaged spreadsheet.","","Keep if brand voice allows it."
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

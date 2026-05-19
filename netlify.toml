@@ -1,8 +1,18 @@
-[build]
-  publish = "."
-  functions = "netlify/functions"
-
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>No More Screenshots — Share a Clean Content Calendar Link</title>
+  <meta name="description" content="Import posts from Buffer or CSV and generate a clean read-only content calendar link." />
+  <meta name="theme-color" content="#f5f6fa" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Bricolage+Grotesque:wght@600;700;800&family=Lato:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main id="app"></main>
+  <div class="toast" id="toast" aria-live="polite"></div>
+  <script src="./app.js"></script>
+</body>
+</html>

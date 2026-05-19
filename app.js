@@ -1,47 +1,129 @@
-(() => {
-  const app = document.getElementById('app');
-  const samplePosts = [
-    {id:uid(),date:'2026-06-03',time:'9:00 AM',platform:'Instagram',caption:'A behind-the-scenes look at the summer campaign setup. The kind of content that says “we planned this” while still feeling human.',mediaUrl:'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=1200&auto=format&fit=crop',note:'Feature this as the first post of the week.'},
-    {id:uid(),date:'2026-06-04',time:'1:30 PM',platform:'LinkedIn',caption:'Most content calendars fail because they organize posts, not decisions. Here is the cleaner way we are sharing what is planned this month.',mediaUrl:'',note:'Good candidate for founder/team voice.'},
-    {id:uid(),date:'2026-06-06',time:'11:15 AM',platform:'TikTok',caption:'POV: the client can see the calendar without asking for a PDF, spreadsheet, screenshot, and one tiny change that ruins everyone’s afternoon.',mediaUrl:'https://images.unsplash.com/photo-1497366754035-f200968a6e72?q=80&w=1200&auto=format&fit=crop',note:'Use trend audio if still relevant.'},
-    {id:uid(),date:'2026-06-07',time:'4:00 PM',platform:'Threads',caption:'Content calendar sharing should not require three Slack threads, two screenshots, and an emotionally damaged spreadsheet.',mediaUrl:'',note:'A little spicy. Keep only if brand voice allows it.'}
-  ];
-  let state = loadState() || {snapshotTitle:'June Client Content Calendar',intro:'Here is the upcoming content plan in one clean view. No screenshots, no spreadsheet archaeology, no “wait, which version is final?” energy.',posts:samplePosts,viewMode:'list',showNotes:true,showMedia:true,generatedLink:''};
-  let editingPostId = null;
-  function uid(){return 'p_'+Math.random().toString(36).slice(2,10)+Date.now().toString(36)}
-  function icon(id){return `<svg><use href="#${id}"></use></svg>`}
-  function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
-  function saveState(){try{localStorage.setItem('nms_lite_state_v1',JSON.stringify(state))}catch{}}
-  function loadState(){try{const r=localStorage.getItem('nms_lite_state_v1');return r?JSON.parse(r):null}catch{return null}}
-  function b64urlEncode(obj){const bytes=new TextEncoder().encode(JSON.stringify(obj));let bin='';bytes.forEach(b=>bin+=String.fromCharCode(b));return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/g,'')}
-  function b64urlDecode(str){const norm=String(str||'').replace(/-/g,'+').replace(/_/g,'/');const pad=norm+'='.repeat((4-norm.length%4)%4);const bin=atob(pad);const bytes=Uint8Array.from(bin,c=>c.charCodeAt(0));return JSON.parse(new TextDecoder().decode(bytes))}
-  function sortedPosts(){return [...state.posts].sort((a,b)=>`${a.date||''} ${a.time||''}`.localeCompare(`${b.date||''} ${b.time||''}`))}
-  function snapshotPayload(){return {title:state.snapshotTitle,intro:state.intro,showNotes:state.showNotes,showMedia:state.showMedia,viewMode:state.viewMode,posts:sortedPosts().map(p=>({date:p.date,time:p.time,platform:p.platform,caption:p.caption,mediaUrl:p.mediaUrl,note:p.note})),createdAt:new Date().toISOString()}}
-  function generateLink(){state.generatedLink=`${location.origin}${location.pathname}#snapshot=${b64urlEncode(snapshotPayload())}`;saveState();renderApp();toast('Snapshot link generated')}
-  async function copyLink(){if(!state.generatedLink)generateLink();try{await navigator.clipboard.writeText(state.generatedLink);toast('Copied link')}catch{toast('Copy failed. The link is visible.')}}
-  function openGeneratedLink(){if(!state.generatedLink)generateLink();window.open(state.generatedLink,'_blank','noopener,noreferrer')}
-  function dateParts(s){const d=new Date(`${s}T00:00:00`);if(Number.isNaN(d.getTime()))return{mo:'TBD',day:'--',full:s||'Unscheduled'};return{mo:d.toLocaleDateString(undefined,{month:'short'}),day:d.toLocaleDateString(undefined,{day:'numeric'}),full:d.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}}
-  function counts(){return state.posts.reduce((a,p)=>(a[p.platform]=(a[p.platform]||0)+1,a),{})}
-  function rangeLabel(posts=state.posts){const dates=posts.map(p=>p.date).filter(Boolean).sort();if(!dates.length)return'No dates yet';const f=new Date(`${dates[0]}T00:00:00`),l=new Date(`${dates.at(-1)}T00:00:00`);if(Number.isNaN(f)||Number.isNaN(l))return'Dates imported';const fmt=d=>d.toLocaleDateString(undefined,{month:'short',day:'numeric'});return`${fmt(f)} – ${fmt(l)}`}
-  function renderApp(){const hash=new URLSearchParams(location.hash.slice(1));const snap=hash.get('snapshot');if(snap)return renderPublicSnapshot(snap);const c=counts();const platformText=Object.keys(c).slice(0,4).map(p=>`${p}: ${c[p]}`).join(' · ')||'No platforms yet';app.innerHTML=`
-    <div class="shell"><aside class="side"><div class="brand"><div class="logo">${icon('i-calendar')}</div><div><p class="brand-title">No More Screenshots</p><p class="brand-tag">Shareable calendar links</p></div></div><div class="side-card"><p class="side-label">Simple promise</p><p class="side-copy">Import posts, clean up the view, generate one read-only link.</p></div><button class="btn primary full" data-action="generate">${icon('i-link')} Generate link</button><button class="btn full" data-action="import">${icon('i-upload')} Import posts</button><button class="btn ghost full" data-action="add">${icon('i-plus')} Add post</button><div class="side-card"><p class="side-label">Current Snapshot</p><p class="side-copy"><strong>${esc(state.posts.length)}</strong> posts · ${esc(rangeLabel())}</p><p class="side-copy" style="margin-top:8px;">${esc(platformText)}</p></div><div class="side-card"><p class="side-label">Not in this MVP</p><p class="side-copy">Approvals, comments, deal tracking, and proof-of-work stay in Receipts.</p></div></aside>
-    <main class="main"><section class="hero"><div class="panel hero-copy"><div class="eyebrow"><span class="dot"></span> Demo v1 — simplified</div><h1>Turn your content calendar into a clean shareable link.</h1><p class="hero-p">No client login. No approval workflow. No “which screenshot is newest?” Just posts in, polished calendar link out.</p><p class="hero-mini">Start with sample data, upload a CSV, add posts manually, or test the Buffer import scaffold.</p><div class="btn-row"><button class="btn primary" data-action="import">${icon('i-upload')} Import posts</button><button class="btn green" data-action="generate">${icon('i-link')} Generate Snapshot</button><button class="btn ghost" data-action="preview">${icon('i-eye')} Preview</button></div></div><div class="panel snapshot-box"><div><h2>Your share link</h2><p>Generate a static demo link you can open or send. It carries the Snapshot data in the URL for this MVP.</p><div class="link-preview">${state.generatedLink?esc(state.generatedLink):'No link generated yet.'}</div></div><div class="btn-row"><button class="btn primary" data-action="copy">${icon('i-copy')} Copy link</button><button class="btn ghost" data-action="openLink">${icon('i-eye')} Open link</button></div></div></section>
-    <section class="panel controls"><input class="input" id="snapshotTitle" value="${esc(state.snapshotTitle)}" placeholder="Snapshot title"/><input class="input" id="snapshotIntro" value="${esc(state.intro)}" placeholder="Short intro message"/><select class="select" id="viewMode"><option value="list" ${state.viewMode==='list'?'selected':''}>List view</option><option value="calendar" ${state.viewMode==='calendar'?'selected':''}>Calendar view</option></select><button class="btn small" data-action="saveSettings">${icon('i-check')} Save</button></section>
-    <section class="workspace"><div class="panel section-card"><div class="section-head"><div><h2 class="section-title">Posts</h2><p class="section-desc">This is the owner view. Clean, editable, and obvious.</p></div><button class="btn small ghost" data-action="add">${icon('i-plus')} Add</button></div><div class="stats"><div class="stat"><strong>${state.posts.length}</strong><span>Posts</span></div><div class="stat"><strong>${Object.keys(c).length}</strong><span>Platforms</span></div><div class="stat"><strong>${esc(rangeLabel())}</strong><span>Range</span></div></div>${renderPostList(false)}</div><div class="panel section-card"><div class="section-head"><div><h2 class="section-title">Snapshot preview</h2><p class="section-desc">What your shared read-only link will look like.</p></div><div class="toggle-row" style="margin-top:0;"><label class="toggle"><input type="checkbox" id="showMedia" ${state.showMedia?'checked':''}/> Media</label><label class="toggle"><input type="checkbox" id="showNotes" ${state.showNotes?'checked':''}/> Notes</label></div></div>${state.viewMode==='calendar'?renderCalendar(state.posts):renderPostList(true)}</div></section></main></div>${renderImportDrawer()}${renderEditModal()}<div class="toast" id="toast"></div>`;bindEvents()}
-  function renderPostList(readOnly){const posts=sortedPosts();if(!posts.length)return`<div class="empty-state">No posts yet. Import a CSV, load sample data, or add one manually.</div>`;return`<div class="post-list">${posts.map(p=>{const d=dateParts(p.date),showMedia=readOnly?state.showMedia:true,showNotes=readOnly?state.showNotes:true;return`<article class="post-card"><div class="post-inner"><div class="date-tile"><span class="mo">${esc(d.mo)}</span><span class="day">${esc(d.day)}</span></div><div><div class="post-meta"><span class="pill platform">${esc(p.platform||'Platform')}</span><span class="pill">${esc(d.full)} · ${esc(p.time||'Time TBD')}</span>${p.mediaUrl?`<span class="pill">Media linked</span>`:''}</div><p class="post-caption">${esc(p.caption||'No caption yet.')}</p>${showNotes&&p.note?`<p class="post-note">${esc(p.note)}</p>`:''}${!readOnly?`<div class="post-actions"><button class="btn small ghost" data-action="edit" data-id="${esc(p.id)}">Edit</button><button class="btn small ghost" data-action="delete" data-id="${esc(p.id)}">Delete</button></div>`:''}</div></div>${showMedia&&p.mediaUrl?`<img class="media-thumb" src="${esc(p.mediaUrl)}" alt="Media preview" loading="lazy" onerror="this.style.display='none'"/>`:''}</article>`}).join('')}</div>`}
-  function renderCalendar(posts){const sorted=[...posts].filter(p=>p.date).sort((a,b)=>a.date.localeCompare(b.date));if(!sorted.length)return`<div class="empty-state">Add dated posts to see the calendar preview.</div>`;const first=new Date(`${sorted[0].date}T00:00:00`),y=first.getFullYear(),m=first.getMonth(),start=new Date(y,m,1),end=new Date(y,m+1,0),cells=[];for(let i=0;i<start.getDay();i++)cells.push(null);for(let day=1;day<=end.getDate();day++)cells.push(new Date(y,m,day));const by=sorted.reduce((a,p)=>((a[p.date] ||= []).push(p),a),{});return`<div class="calendar">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>`<div class="dow">${d}</div>`).join('')}${cells.map(d=>{if(!d)return`<div class="day-cell empty"></div>`;const key=d.toISOString().slice(0,10),items=by[key]||[];return`<div class="day-cell"><div class="day-number">${d.getDate()}</div>${items.slice(0,3).map(p=>`<div class="day-post">${esc(p.platform)} · ${esc(p.caption).slice(0,54)}${p.caption.length>54?'…':''}</div>`).join('')}${items.length>3?`<div class="day-post">+${items.length-3} more</div>`:''}</div>`}).join('')}</div>`}
-  function renderImportDrawer(){return`<div class="drawer-backdrop" id="drawerBackdrop"></div><aside class="drawer" id="importDrawer"><div class="drawer-head"><div><h2>Import posts</h2><p class="section-desc">Start simple. The MVP only needs posts to show and share.</p></div><button class="btn small ghost" data-action="closeDrawer">${icon('i-x')}</button></div><div class="drawer-body"><div class="import-option"><h3>Sample data</h3><p>Load a fake content calendar so you can test the Snapshot flow immediately.</p><button class="btn primary" data-action="sample">Load sample posts</button></div><div class="import-option"><h3>CSV upload</h3><p>Use columns like date, time, platform, caption, mediaUrl, and note.</p><label class="btn primary" for="csvFile">${icon('i-upload')} Upload CSV</label><input class="file-input" type="file" id="csvFile" accept=".csv"/><p style="margin-top:10px;"><a href="./sample-calendar.csv" download>Download sample CSV</a></p></div><div class="import-option"><h3>Buffer import scaffold</h3><p>Paste a Buffer token/API key if available and test importing scheduled posts.</p><div class="field"><label for="bufferToken">Buffer token</label><input class="input" id="bufferToken" type="password" placeholder="Paste token for demo import"/></div><button class="btn" style="margin-top:10px;" data-action="bufferImport">${icon('i-buffer')} Try Buffer import</button><p style="margin-top:10px;font-size:.84rem;">If this fails, sample/CSV still work.</p></div></div></aside>`}
-  function renderEditModal(){const p=state.posts.find(x=>x.id===editingPostId)||{id:'',date:'',time:'',platform:'Instagram',caption:'',mediaUrl:'',note:''};return`<div class="modal-backdrop" id="modalBackdrop"></div><section class="modal ${editingPostId!==null?'open':''}" id="editModal"><div class="modal-head"><div><h2>${p.id?'Edit post':'Add post'}</h2><p class="section-desc">Keep it readable. The shared view is the product.</p></div><button class="btn small ghost" data-action="closeModal">${icon('i-x')}</button></div><div class="modal-body"><div class="form-grid"><div class="field"><label>Date</label><input class="input" id="editDate" type="date" value="${esc(p.date)}"/></div><div class="field"><label>Time</label><input class="input" id="editTime" value="${esc(p.time)}" placeholder="9:00 AM"/></div><div class="field"><label>Platform</label><select class="select" id="editPlatform">${['Instagram','LinkedIn','TikTok','Facebook','Threads','X','YouTube Shorts','Pinterest'].map(v=>`<option ${p.platform===v?'selected':''}>${v}</option>`).join('')}</select></div><div class="field"><label>Media URL</label><input class="input" id="editMedia" value="${esc(p.mediaUrl)}" placeholder="https://..."/></div><div class="field full"><label>Caption</label><textarea class="textarea" id="editCaption">${esc(p.caption)}</textarea></div><div class="field full"><label>Optional note</label><input class="input" id="editNote" value="${esc(p.note)}" placeholder="Context for the shared calendar"/></div></div><div class="btn-row" style="justify-content:flex-end;"><button class="btn ghost" data-action="closeModal">Cancel</button><button class="btn primary" data-action="savePost">${icon('i-check')} Save post</button></div></div></section>`}
-  function bindEvents(){document.querySelectorAll('[data-action]').forEach(b=>b.addEventListener('click',handleAction));document.getElementById('snapshotTitle')?.addEventListener('input',e=>{state.snapshotTitle=e.target.value;saveState()});document.getElementById('snapshotIntro')?.addEventListener('input',e=>{state.intro=e.target.value;saveState()});document.getElementById('viewMode')?.addEventListener('change',e=>{state.viewMode=e.target.value;saveState();renderApp()});document.getElementById('showMedia')?.addEventListener('change',e=>{state.showMedia=e.target.checked;saveState();renderApp()});document.getElementById('showNotes')?.addEventListener('change',e=>{state.showNotes=e.target.checked;saveState();renderApp()});document.getElementById('csvFile')?.addEventListener('change',handleCsvFile);document.getElementById('drawerBackdrop')?.addEventListener('click',closeDrawer);document.getElementById('modalBackdrop')?.addEventListener('click',closeModal)}
-  function handleAction(e){const a=e.currentTarget.dataset.action,id=e.currentTarget.dataset.id;if(a==='import')return openDrawer();if(a==='closeDrawer')return closeDrawer();if(a==='generate')return generateLink();if(a==='copy')return copyLink();if(a==='openLink')return openGeneratedLink();if(a==='preview')return renderPublicPayload(snapshotPayload(),true);if(a==='sample'){state.posts=samplePosts.map(p=>({...p,id:uid()}));closeDrawer();saveState();renderApp();return toast('Sample posts loaded')}if(a==='add'){editingPostId='';return renderApp()}if(a==='edit'){editingPostId=id;return renderApp()}if(a==='delete'){state.posts=state.posts.filter(p=>p.id!==id);saveState();return renderApp()}if(a==='closeModal')return closeModal();if(a==='savePost')return savePost();if(a==='saveSettings'){state.snapshotTitle=document.getElementById('snapshotTitle').value;state.intro=document.getElementById('snapshotIntro').value;saveState();return toast('Snapshot settings saved')}if(a==='bufferImport')return tryBufferImport()}
-  function openDrawer(){document.getElementById('drawerBackdrop')?.classList.add('open');document.getElementById('importDrawer')?.classList.add('open')}function closeDrawer(){document.getElementById('drawerBackdrop')?.classList.remove('open');document.getElementById('importDrawer')?.classList.remove('open')}function closeModal(){editingPostId=null;renderApp()}
-  function savePost(){const ex=state.posts.find(p=>p.id===editingPostId);const p={id:ex?.id||uid(),date:document.getElementById('editDate').value,time:document.getElementById('editTime').value,platform:document.getElementById('editPlatform').value,mediaUrl:document.getElementById('editMedia').value,caption:document.getElementById('editCaption').value,note:document.getElementById('editNote').value};state.posts=ex?state.posts.map(x=>x.id===ex.id?p:x):[...state.posts,p];editingPostId=null;saveState();renderApp();toast('Post saved')}
-  function csvRows(text){const rows=[];let row=[],cell='',q=false;for(let i=0;i<text.length;i++){const ch=text[i],nx=text[i+1];if(ch==='"'&&q&&nx==='"'){cell+='"';i++}else if(ch==='"')q=!q;else if(ch===','&&!q){row.push(cell.trim());cell=''}else if((ch==='\n'||ch==='\r')&&!q){if(ch==='\r'&&nx==='\n')i++;row.push(cell.trim());rows.push(row);row=[];cell=''}else cell+=ch}if(cell||row.length){row.push(cell.trim());rows.push(row)}return rows}
-  function parseCsv(text){const rows=csvRows(text);if(rows.length<2)return[];const h=rows[0].map(x=>x.trim().toLowerCase());return rows.slice(1).filter(r=>r.some(Boolean)).map(r=>{const d={};h.forEach((k,i)=>d[k]=r[i]||'');return{id:uid(),date:d.date||d['publish date']||d['scheduled date']||d.scheduled||'',time:d.time||d['publish time']||'',platform:d.platform||d.channel||'Instagram',caption:d.caption||d.copy||d.text||d.post||'',mediaUrl:d.mediaurl||d['media url']||d.asset||d.link||'',note:d.note||d.notes||d.context||''}})}
-  function handleCsvFile(e){const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=()=>{const imported=parseCsv(String(r.result||''));if(!imported.length)return toast('No posts found in that CSV');state.posts=imported;saveState();closeDrawer();renderApp();toast(`${imported.length} posts imported`)};r.readAsText(f)}
-  async function tryBufferImport(){const token=document.getElementById('bufferToken')?.value?.trim();if(!token)return toast('Paste a Buffer token first');try{const res=await fetch('/.netlify/functions/buffer-proxy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})});const data=await res.json();if(!res.ok)throw new Error(data.error||'Buffer import failed');const imported=(data.posts||[]).map(x=>{const dt=x.scheduled_at?new Date(x.scheduled_at):null;return{id:uid(),date:dt&&!Number.isNaN(dt)?dt.toISOString().slice(0,10):'',time:dt&&!Number.isNaN(dt)?dt.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}):'',platform:x.platform||x.channel||'Buffer',caption:x.text||x.caption||'',mediaUrl:x.mediaUrl||'',note:x.channel_name?`Imported from Buffer channel: ${x.channel_name}`:'Imported from Buffer.'}});if(!imported.length)throw new Error('No posts');state.posts=imported;saveState();closeDrawer();renderApp();toast(`${imported.length} Buffer posts imported`)}catch(err){console.error(err);toast('Buffer import did not work yet. Sample/CSV still work.')}}
-  function renderPublicSnapshot(encoded){try{return renderPublicPayload(b64urlDecode(encoded),false)}catch{app.innerHTML=`<div class="public-wrap"><section class="panel public-head"><span class="public-kicker">Snapshot unavailable</span><h1 class="public-title">This link could not load.</h1><p class="public-intro">The Snapshot data may be missing or the URL was cut off.</p><button class="btn primary" onclick="location.hash=''">Back to app</button></section></div>`}}
-  function renderPublicPayload(payload,isPreview){const old=state;state={...state,snapshotTitle:payload.title||'Content Calendar',intro:payload.intro||'',posts:Array.isArray(payload.posts)?payload.posts.map(p=>({...p,id:uid()})):[],showNotes:payload.showNotes!==false,showMedia:payload.showMedia!==false,viewMode:payload.viewMode||'list'};app.innerHTML=`<div class="public-wrap"><section class="panel public-head"><span class="public-kicker">${isPreview?'Preview mode':'Shared Snapshot'}</span><h1 class="public-title">${esc(state.snapshotTitle)}</h1>${state.intro?`<p class="public-intro">${esc(state.intro)}</p>`:''}${isPreview?`<div class="btn-row"><button class="btn primary" id="backToBuilder">Back to builder</button><button class="btn ghost" id="makeLinkFromPreview">${icon('i-link')} Generate link</button></div>`:''}</section><section class="panel section-card"><div class="section-head"><div><h2 class="section-title">Content plan</h2><p class="section-desc">${esc(state.posts.length)} posts · ${esc(rangeLabel(state.posts))}</p></div></div>${state.viewMode==='calendar'?renderCalendar(state.posts):renderPostList(true)}</section><p class="public-footer">Shared with No More Screenshots — a clean calendar link instead of screenshot gymnastics.</p></div><div class="toast" id="toast"></div>`;state=old;document.getElementById('backToBuilder')?.addEventListener('click',renderApp);document.getElementById('makeLinkFromPreview')?.addEventListener('click',generateLink)}
-  function toast(msg){const t=document.getElementById('toast');if(!t)return;t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600)}
-  window.addEventListener('hashchange',renderApp);renderApp();
-})();
+// netlify/functions/buffer-proxy.js
+// Accepts the Buffer token from the client request body.
+// The token is never stored — it's forwarded directly to Buffer's API.
+
+function formatProxyError(message, extras = {}) {
+  return {
+    errors: [{ message, ...extras }],
+  };
+}
+
+function toIntOrNull(value) {
+  if (value == null) return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+exports.handler = async function(event) {
+  const corsHeaders = {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+
+  if (event.httpMethod === "OPTIONS") {
+    return { statusCode: 200, headers: corsHeaders, body: "" };
+  }
+
+  let payload;
+  try {
+    payload = JSON.parse(event.body || "{}");
+  } catch {
+    return {
+      statusCode: 400,
+      headers: corsHeaders,
+      body: JSON.stringify(formatProxyError("Invalid request body", { code: "BAD_REQUEST", status: 400, retryable: false })),
+    };
+  }
+
+  const { token, query, variables } = payload;
+
+  if (!query) {
+    return {
+      statusCode: 400,
+      headers: corsHeaders,
+      body: JSON.stringify(formatProxyError("No query provided", { code: "BAD_REQUEST", status: 400, retryable: false })),
+    };
+  }
+
+  if (!token) {
+    return {
+      statusCode: 401,
+      headers: corsHeaders,
+      body: JSON.stringify(formatProxyError("No Buffer token provided", { code: "MISSING_TOKEN", status: 401, retryable: false })),
+    };
+  }
+
+  try {
+    const res = await fetch("https://api.buffer.com", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+      },
+      body: JSON.stringify({ query, variables: variables || {} }),
+    });
+
+    const text = await res.text();
+
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      return {
+        statusCode: res.status >= 500 ? res.status : 502,
+        headers: corsHeaders,
+        body: JSON.stringify(
+          formatProxyError(
+            `Buffer returned HTTP ${res.status} with non-JSON body: ${text.slice(0, 300)}`,
+            {
+              code: "BUFFER_NON_JSON",
+              status: res.status,
+              retryable: res.status >= 500,
+            }
+          )
+        ),
+      };
+    }
+
+    if (!res.ok) {
+      const msg = data?.errors?.[0]?.message || `Buffer returned HTTP ${res.status}`;
+      let code = "BUFFER_HTTP_ERROR";
+      if (res.status === 401 || res.status === 403) code = "AUTH_ERROR";
+      else if (res.status === 429) code = "RATE_LIMIT";
+      else if (res.status >= 500) code = "BUFFER_SERVER_ERROR";
+
+      return {
+        statusCode: res.status,
+        headers: corsHeaders,
+        body: JSON.stringify(
+          formatProxyError(msg, {
+            code,
+            status: res.status,
+            retryable: res.status === 429 || res.status >= 500,
+            retryAfter: toIntOrNull(res.headers.get("retry-after")),
+          })
+        ),
+      };
+    }
+
+    return {
+      statusCode: 200,
+      headers: corsHeaders,
+      body: JSON.stringify(data),
+    };
+  } catch (err) {
+    return {
+      statusCode: 502,
+      headers: corsHeaders,
+      body: JSON.stringify(
+        formatProxyError(err.message || "Proxy error", {
+          code: "PROXY_NETWORK_ERROR",
+          status: 502,
+          retryable: true,
+        })
+      ),
+    };
+  }
+};
