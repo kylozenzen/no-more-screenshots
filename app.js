@@ -25,11 +25,6 @@ const state = loadState() || {
   token: ''
 };
 
-if (!state.scheduled.length) {
-  state.scheduled = samplePosts();
-  state.month = new Date('2026-06-01T12:00:00').toISOString();
-}
-
 function samplePosts() {
   return [
     {
@@ -88,6 +83,11 @@ function formatDateOnly(key) {
   const d = new Date(key + 'T00:00:00');
   if (Number.isNaN(d.getTime())) return key;
   return d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+}
+function monthRangeLabel(d) {
+  const start = new Date(d.getFullYear(), d.getMonth(), 1);
+  const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+  return `${start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
 }
 function saveState() {
   try { localStorage.setItem(STATE_KEY, JSON.stringify(state)); } catch {}
@@ -179,6 +179,7 @@ function buildSnapshotPayload() {
     createdAt: Date.now(),
     period: 'month',
     month: label,
+    monthRange: monthRangeLabel(m),
     title,
     message: (state.message || '').trim(),
     includeNotes,
@@ -242,19 +243,28 @@ function renderApp() {
         </div>
         <h2 class="conn-heading">${token ? 'Calendar ready' : 'Calendar standalone'}</h2>
         <p class="conn-helper">This is the PostIQ Plan/calendar feature as its own shareable snapshot tool.</p>
-        <div class="field">
-          <label class="label" for="tokenInput" style="color:rgba(255,255,255,.45);">Buffer token</label>
-          <input id="tokenInput" class="input" type="password" value="${safeText(token)}" placeholder="Paste Buffer token" />
-        </div>
+        <details class="advanced-panel">
+          <summary>Advanced Buffer import</summary>
+          <p class="advanced-helper">Optional: import scheduled posts from Buffer using your token.</p>
+          <div class="field">
+            <label class="label" for="tokenInput">Buffer token</label>
+            <input id="tokenInput" class="input" type="password" value="${safeText(token)}" placeholder="Paste Buffer token" />
+          </div>
+          <button class="btn primary full" id="syncBtn">Import scheduled posts</button>
+        </details>
       </div>
 
       <div class="side-actions">
-        <button class="btn primary full" id="syncBtn">Load from Buffer</button>
         <button class="btn full" id="sampleBtn">Load sample calendar</button>
         <label class="btn full" for="csvFile">Upload CSV</label>
         <input id="csvFile" type="file" accept=".csv" class="hidden" />
+        <a class="btn ghost full csv-helper-link" href="./sample-calendar.csv" download>Download sample CSV</a>
         <button class="btn full" id="addPostBtn">Add post</button>
         <button class="btn full" id="addNoteBtn">Add note</button>
+      </div>
+      <div class="csv-help">
+        <div class="csv-help-title">Accepted columns</div>
+        <div class="csv-help-cols">date, time, platform, channel name, caption, status</div>
       </div>
 
       <div class="side-note">
@@ -294,7 +304,16 @@ function renderApp() {
           <div class="cal-grid" id="calGrid">${calendarGridHtml()}</div>
           <div class="cal-agenda" id="calAgenda">${agendaHtml()}</div>
 
-          ${currentPosts().length ? '' : `<div class="empty-state" style="margin-top:16px;"><div class="empty-title">No posts in this month</div><div class="empty-desc">Load sample posts, upload a CSV, add a post, or import scheduled posts from Buffer.</div></div>`}
+          ${currentPosts().length ? '' : `<div class="empty-state" style="margin-top:16px;">
+            <div class="empty-title">Create your first calendar Snapshot</div>
+            <div class="empty-desc">Load sample posts, upload a CSV, add a post manually, or import scheduled posts from Buffer.</div>
+            <div class="empty-cta-row">
+              <button class="btn" id="emptySampleBtn">Load sample calendar</button>
+              <label class="btn" for="csvFile">Upload CSV</label>
+              <button class="btn" id="emptyAddPostBtn">Add post</button>
+              <button class="btn ghost" id="emptyBufferBtn">Advanced Buffer import</button>
+            </div>
+          </div>`}
         </div>
       </section>
     </main>
@@ -382,15 +401,18 @@ function modalHtml() {
           <label class="label" for="shareMessage">Optional message</label>
           <textarea id="shareMessage" placeholder="Add a quick note for the person viewing this calendar.">${safeText(state.message || '')}</textarea>
         </div>
+        <div class="share-meta-line">Month range: <strong>${safeText(monthRangeLabel(monthDate()))}</strong></div>
         <label class="row" style="margin-bottom:12px;color:var(--muted);font-weight:600;">
           <input type="checkbox" id="includeNotes" ${state.includeNotes ? 'checked' : ''} />
           Include planning notes
         </label>
+        <p class="share-explainer">This creates a read-only calendar link. No login required.</p>
         <div class="row">
-          <button class="btn primary" id="generateShare">Generate link</button>
-          <button class="btn" id="copyShare">Copy</button>
-          <button class="btn ghost" id="openShare">Open</button>
+          <button class="btn primary" id="generateShare">Generate Link</button>
+          <button class="btn" id="copyShare">Copy Link</button>
+          <button class="btn ghost" id="openShare">Open Preview</button>
         </div>
+        <div id="shareSuccess" class="share-success ${state.shareLink ? 'show' : ''}">Snapshot ready. Send this link instead of screenshots.</div>
         <div class="share-link-box" id="shareLinkBox">${safeText(state.shareLink || 'Generate a link first.')}</div>
       </div>
     </div>
@@ -436,15 +458,16 @@ function bindEvents() {
   });
   qs('syncBtn')?.addEventListener('click', syncFromBuffer);
   qs('sampleBtn')?.addEventListener('click', () => {
-    state.scheduled = samplePosts();
-    state.month = new Date('2026-06-01T12:00:00').toISOString();
-    state.shareLink = '';
-    saveState();
-    renderApp();
-    showToast('Sample calendar loaded');
+    loadSampleCalendar();
   });
   qs('csvFile')?.addEventListener('change', handleCsvUpload);
   qs('addPostBtn')?.addEventListener('click', () => openEditPost());
+  qs('emptySampleBtn')?.addEventListener('click', () => loadSampleCalendar());
+  qs('emptyAddPostBtn')?.addEventListener('click', () => openEditPost());
+  qs('emptyBufferBtn')?.addEventListener('click', () => {
+    document.querySelector('.advanced-panel')?.setAttribute('open', '');
+    qs('tokenInput')?.focus();
+  });
   qs('addNoteBtn')?.addEventListener('click', () => openNoteModal());
   qs('shareBtn')?.addEventListener('click', () => openModal('shareModal'));
   qs('resetBtn')?.addEventListener('click', () => {
@@ -477,11 +500,20 @@ function bindEvents() {
     state.includeNotes = qs('includeNotes').checked;
     const link = shareSnapshot();
     qs('shareLinkBox').textContent = link;
+    qs('shareSuccess')?.classList.add('show');
   });
   qs('copyShare')?.addEventListener('click', copyShareLink);
   qs('openShare')?.addEventListener('click', openShareLink);
   qs('savePost')?.addEventListener('click', savePostFromModal);
   qs('saveNote')?.addEventListener('click', saveNoteFromModal);
+}
+function loadSampleCalendar() {
+  state.scheduled = samplePosts();
+  state.month = new Date('2026-06-01T12:00:00').toISOString();
+  state.shareLink = '';
+  saveState();
+  renderApp();
+  showToast('Sample calendar loaded');
 }
 
 function openModal(id) { qs(id)?.classList.add('open'); }
@@ -710,12 +742,14 @@ function renderSharedView(snap) {
       <section class="card public-hero">
         <div class="public-title">${safeText(snap.title || 'Content Plan')}</div>
         ${snap.message ? `<p class="public-message">${safeText(snap.message)}</p>` : ''}
-        <div class="public-meta">${safeText(snap.month || monthLabel(base))} · ${posts.length} scheduled post${posts.length === 1 ? '' : 's'}${notes.length ? ` · ${notes.length} note${notes.length === 1 ? '' : 's'}` : ''}</div>
+        <div class="public-meta">${safeText(snap.month || monthLabel(base))} · ${safeText(snap.monthRange || monthRangeLabel(base))}</div>
+        <div class="public-readonly">Read-only calendar</div>
       </section>
       <section class="calendar-shell">
         <div class="cal-header"><div class="cal-month-label">${safeText(snap.month || monthLabel(base))}</div></div>
         <div class="cal-dow"><div class="dow-cell">Sun</div><div class="dow-cell">Mon</div><div class="dow-cell">Tue</div><div class="dow-cell">Wed</div><div class="dow-cell">Thu</div><div class="dow-cell">Fri</div><div class="dow-cell">Sat</div></div>
         <div class="cal-grid">${sharedCalendarGridHtml(base, map)}</div>
+        <div class="public-list-title">Posts by date</div>
         <div class="cal-agenda" style="display:grid;">${sharedAgendaHtml(map)}</div>
       </section>
       <p class="public-footer">Shared with No More Screenshots — the PostIQ-style calendar without the rest of the cockpit.</p>
@@ -765,7 +799,11 @@ function sharedAgendaHtml(map) {
   if (!keys.length) return `<div class="empty-state"><div class="empty-title">No posts in this snapshot</div></div>`;
   return keys.map(key => `<div class="agenda-day" data-day="${key}">
     <div class="agenda-date">${safeText(formatDateOnly(key))}</div>
-    ${(map[key].posts || []).map(p => `<div class="agenda-post">${safeText(p.platform || 'Post')} · ${safeText(compact(p.text, 100))}</div>`).join('')}
+    ${(map[key].posts || []).map(p => `<div class="agenda-post">
+      <div><strong>${safeText(p.platform || 'Post')}</strong>${p.channelName ? ` · ${safeText(p.channelName)}` : ''}</div>
+      <div>${safeText(formatDateTime(p.dueAt))}</div>
+      <div>${safeText(p.text || '')}</div>
+    </div>`).join('')}
     ${(map[key].notes || []).map(n => `<div class="agenda-post" style="background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.2);color:#92600a;">Note · ${safeText(compact(n.text, 100))}</div>`).join('')}
   </div>`).join('');
 }

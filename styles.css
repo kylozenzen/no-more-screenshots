@@ -172,6 +172,30 @@ a:hover { text-decoration: underline; }
   display: grid;
   gap: 9px;
 }
+.csv-help {
+  margin: 0 14px 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface2);
+}
+.csv-help-title { font: 500 10px/1.2 'DM Mono', monospace; letter-spacing: .06em; text-transform: uppercase; color: var(--subtle); margin-bottom: 5px; }
+.csv-help-cols { color: var(--muted); font-size: 12px; font-weight: 700; }
+.csv-helper-link { border-style: dashed; }
+.advanced-panel {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 10px;
+  background: rgba(255,255,255,.82);
+}
+.advanced-panel summary {
+  cursor: pointer;
+  font: 700 12px/1.2 'DM Mono', monospace;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.advanced-helper { color: var(--muted); font-size: 12px; margin: 8px 0 10px; font-weight: 700; }
 
 .side-note {
   margin: auto 14px 14px;
@@ -513,6 +537,7 @@ textarea { min-height: 96px; resize: vertical; line-height: 1.65; }
 
 .empty-title { color: var(--ink); font-weight: 900; font-size: 15px; }
 .empty-desc { max-width: 56ch; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.empty-cta-row { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; width: min(560px, 100%); margin-top: 8px; }
 
 .cal-agenda { display: none; gap: 10px; }
 
@@ -599,6 +624,20 @@ textarea { min-height: 96px; resize: vertical; line-height: 1.65; }
   font: 500 11px/1.5 'DM Mono', monospace;
   overflow-wrap: anywhere;
 }
+.share-meta-line { margin-bottom: 10px; color: var(--muted); font-size: 13px; font-weight: 700; }
+.share-explainer { margin: 0 0 12px; color: var(--muted); font-size: 13px; font-weight: 700; }
+.share-success {
+  display: none;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid rgba(22,165,111,.24);
+  background: var(--mint-soft);
+  color: #0f6d4a;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 800;
+}
+.share-success.show { display: block; }
 
 .post-detail-label {
   margin: 0 0 9px;
@@ -708,6 +747,25 @@ textarea { min-height: 96px; resize: vertical; line-height: 1.65; }
   text-transform: uppercase;
   letter-spacing: .06em;
 }
+.public-readonly {
+  margin-top: 10px;
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface2);
+  color: var(--muted);
+  font: 500 10px/1 'DM Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+}
+.public-list-title {
+  margin: 18px 0 8px;
+  color: var(--muted);
+  font: 500 11px/1.2 'DM Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+}
 
 .public-footer {
   margin-top: 24px;
@@ -775,4 +833,5 @@ textarea { min-height: 96px; resize: vertical; line-height: 1.65; }
     order: -1;
     width: 100%;
   }
+  .empty-cta-row { grid-template-columns: 1fr; }
 }
