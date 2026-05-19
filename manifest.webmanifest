@@ -1,6 +1,6 @@
 {
-  "name": "No More Screenshots",
-  "short_name": "NMS",
+  "name": "No More Screenshots Calendar",
+  "short_name": "NMS Calendar",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f5f6fa",

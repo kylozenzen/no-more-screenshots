@@ -1,4 +1,4 @@
-date,time,platform,channel name,caption,mediaUrl,note
-2026-06-03,09:00,Instagram,Client Instagram,"A behind-the-scenes look at the summer campaign setup.","https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=1200&auto=format&fit=crop","Good opener for the week."
-2026-06-04,13:30,LinkedIn,Company Page,"Most content calendars fail because they organize posts, not decisions.","","Use as a thought leadership post."
-2026-06-06,11:15,TikTok,Client TikTok,"POV: the content calendar is finally shareable without screenshots.","https://images.unsplash.com/photo-1497366754035-f200968a6e72?q=80&w=1200&auto=format&fit=crop","Keep if brand voice allows it."
+date,time,platform,channel name,caption,status
+2026-06-03,09:00,Instagram,Client Instagram,"A behind-the-scenes look at the summer campaign setup.",scheduled
+2026-06-04,13:30,LinkedIn,Company Page,"Most content calendars fail because they organize posts, not decisions.",scheduled
+2026-06-06,11:15,TikTok,Client TikTok,"POV: the content calendar is finally shareable without screenshots.",scheduled

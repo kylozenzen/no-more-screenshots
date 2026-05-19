@@ -1,6 +1,27 @@
-# No More Screenshots — Simple v2 Fixed
+# No More Screenshots — Calendar Standalone
 
-This ZIP is Netlify-ready with a minimal valid `netlify.toml`.
+This is the PostIQ Plan/calendar + Share Snapshot idea as its own Netlify-ready tool.
+
+## What it includes
+
+- Monthly calendar grid
+- Mobile agenda fallback
+- Click day to view posts/notes
+- Add post
+- Add planning note
+- Upload CSV
+- Load sample calendar
+- Import scheduled posts from Buffer through `netlify/functions/buffer-proxy.js`
+- Generate read-only `#share=` snapshot links
+
+## What it intentionally excludes
+
+- Composer
+- Ideas
+- Approvals
+- Comments
+- Receipts/deal workflow
+- Strategy Snack Machine
 
 ## Deploy settings
 
@@ -8,11 +29,6 @@ This ZIP is Netlify-ready with a minimal valid `netlify.toml`.
 - Publish directory: `.`
 - Functions directory: `netlify/functions`
 
-## Flow
+## CSV columns
 
-1. Add posts
-2. Review posts
-3. Customize shared view
-4. Generate read-only link
-
-Approvals/comments are intentionally removed.
+date,time,platform,channel name,caption,status
