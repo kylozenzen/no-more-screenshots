@@ -3,7 +3,7 @@
   "short_name": "NMS",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#fff7ed",
-  "theme_color": "#111827",
-  "icons": []
+  "background_color": "#FFF7ED",
+  "theme_color": "#FFF7ED",
+  "description": "Shareable content calendar links without screenshots."
 }

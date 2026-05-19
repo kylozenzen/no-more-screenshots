@@ -1,298 +1,47 @@
-'use strict';
-
-const $ = (s, root = document) => root.querySelector(s);
-const $$ = (s, root = document) => Array.from(root.querySelectorAll(s));
-const STORE = 'nms_snapshot_posts_v2';
-const TOKEN_KEY = 'nms_buffer_token';
-
-const samplePosts = [
-  { id:'p1', date:'2026-06-03', time:'9:00 AM', platform:'Instagram', caption:'Behind the scenes look at our summer launch setup. Less polished. More real. Exactly how the internet likes it.', mediaUrl:'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=1200&auto=format&fit=crop', status:'Review', note:'Client asked for a more human campaign angle.', comments:[] },
-  { id:'p2', date:'2026-06-04', time:'1:30 PM', platform:'LinkedIn', caption:'Most content calendars fail because they organize posts, not decisions. Here is how we are making approvals easier this month.', mediaUrl:'', status:'Draft', note:'Needs stronger hook before sharing.', comments:[] },
-  { id:'p3', date:'2026-06-06', time:'11:15 AM', platform:'TikTok', caption:'POV: your client approves the calendar without asking for screenshots, a PDF, and one tiny change that breaks everything.', mediaUrl:'https://images.unsplash.com/photo-1497366754035-f200968a6e72?q=80&w=1200&auto=format&fit=crop', status:'Approved', note:'Use trend audio if still active.', comments:[{author:'Client', text:'Approved. This one feels very us.'}] },
-  { id:'p4', date:'2026-06-07', time:'4:00 PM', platform:'Threads', caption:'Content approval should not require three Slack threads, two screenshots, and one emotionally damaged spreadsheet.', mediaUrl:'', status:'Needs Edits', note:'Maybe soften the spreadsheet joke for the client view.', comments:[{author:'Client', text:'Can we make this slightly less spicy? Still funny, just less haunted.'}] }
-];
-
-const state = { posts: loadPosts(), filter: 'all', shareUrl: '' };
-
-function loadPosts(){ try { return JSON.parse(localStorage.getItem(STORE)) || samplePosts; } catch { return samplePosts; } }
-function savePosts(){ localStorage.setItem(STORE, JSON.stringify(state.posts)); }
-function uid(prefix='post'){ return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`; }
-function esc(v){ return String(v ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
-function validStatus(s){ return ['Draft','Review','Approved','Needs Edits'].includes(s) ? s : 'Review'; }
-function statusClass(s){ return validStatus(s).replace(/\s+/g,''); }
-function sortedPosts(){ return [...state.posts].sort((a,b)=>`${a.date || ''} ${a.time || ''}`.localeCompare(`${b.date || ''} ${b.time || ''}`)); }
-function visiblePosts(){ return sortedPosts().filter(p => state.filter === 'all' || p.status === state.filter); }
-function metrics(posts = state.posts){ return { total:posts.length, approved:posts.filter(p=>p.status==='Approved').length, review:posts.filter(p=>p.status==='Review').length, edits:posts.filter(p=>p.status==='Needs Edits').length, draft:posts.filter(p=>p.status==='Draft').length }; }
-function toast(msg){ const t = $('#toast'); if(!t) return; t.textContent = msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), 2300); }
-function b64Encode(obj){ return btoa(unescape(encodeURIComponent(JSON.stringify(obj)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
-function b64Decode(str){ const normalized = String(str || '').replace(/-/g,'+').replace(/_/g,'/'); const padded = normalized + '='.repeat((4 - normalized.length % 4) % 4); return JSON.parse(decodeURIComponent(escape(atob(padded)))); }
-function project(){ return { name: $('#projectName')?.value || 'Content Plan', range: $('#rangeLabel')?.value || 'Upcoming posts', intro: $('#intro')?.value || '' }; }
-function setProject(p){ if(!p) return; if($('#projectName')) $('#projectName').value = p.name || 'Content Plan'; if($('#rangeLabel')) $('#rangeLabel').value = p.range || 'Upcoming posts'; if($('#intro')) $('#intro').value = p.intro || ''; }
-
-function statMarkup(m){
-  return [ ['Total',m.total], ['Draft',m.draft], ['Review',m.review], ['Approved',m.approved] ].map(([label,value]) => `<div class="metric"><span>${label}</span><strong>${value}</strong></div>`).join('');
-}
-
-function renderMetrics(){
-  const html = statMarkup(metrics());
-  const a = $('#metrics'); if(a) a.innerHTML = html;
-  const b = $('#statusMetrics'); if(b) b.innerHTML = html;
-}
-
-function postCard(post, client=false){
-  const comments = (post.comments || []).map(c => `<div class="comment"><strong>${esc(c.author || 'Client')}:</strong> ${esc(c.text)}</div>`).join('');
-  const media = post.mediaUrl ? `<img src="${esc(post.mediaUrl)}" alt="Post media preview" loading="lazy" />` : `<span>No media linked</span>`;
-  return `
-    <article class="post-card" data-id="${esc(post.id)}">
-      <div class="media">${media}</div>
-      <div class="post-main">
-        <div class="post-top">
-          <div>
-            <div class="platform">${esc(post.platform || 'Platform')}</div>
-            <div class="date">${esc(post.date || 'Unscheduled')} · ${esc(post.time || '')}</div>
-          </div>
-          <span class="status ${statusClass(post.status)}">${esc(validStatus(post.status))}</span>
-        </div>
-        <div class="caption">${esc(post.caption || 'No caption yet.')}</div>
-        ${post.note ? `<div class="note">Note: ${esc(post.note)}</div>` : ''}
-        ${comments ? `<div class="comments">${comments}</div>` : ''}
-        ${client ? `
-          <div class="post-actions">
-            <button class="mini approve" data-action="approve">Approve</button>
-            <button class="mini edits" data-action="edits">Needs edits</button>
-          </div>
-          <div class="comment-row">
-            <input data-comment-input placeholder="Leave a comment..." />
-            <button class="mini" data-action="comment">Send</button>
-          </div>` : `
-          <div class="post-actions">
-            <button class="mini" data-action="edit">Edit</button>
-            <button class="mini" data-action="Draft">Draft</button>
-            <button class="mini" data-action="Review">Review</button>
-            <button class="mini" data-action="Approved">Approved</button>
-            <button class="mini" data-action="Needs Edits">Needs edits</button>
-            <button class="mini" data-action="delete">Delete</button>
-          </div>`}
-      </div>
-    </article>`;
-}
-
-function renderPosts(){
-  const list = $('#postList');
-  if(list) list.innerHTML = visiblePosts().map(p=>postCard(p)).join('') || `<div class="note">No posts yet. Load sample posts, upload a CSV, or import from Buffer.</div>`;
-  const review = $('#reviewList');
-  if(review) review.innerHTML = sortedPosts().map(p=>postCard(p, true)).join('') || `<div class="note">No posts in this Snapshot yet.</div>`;
-  renderReviewHeader();
-  renderStatus();
-  renderMetrics();
-  renderSide();
-  savePosts();
-}
-
-function renderSide(){
-  const p = project(); const m = metrics();
-  const name = $('#sideProjectName'); if(name) name.textContent = p.name;
-  const meta = $('#sideProjectMeta'); if(meta) meta.textContent = `${m.total} posts · ${m.approved} approved · ${m.review} in review`;
-}
-
-function renderReviewHeader(){
-  const p = project(); const m = metrics();
-  if($('#reviewTitle')) $('#reviewTitle').textContent = p.name;
-  if($('#reviewIntro')) $('#reviewIntro').textContent = p.intro;
-  if($('#approvalScore')) $('#approvalScore').innerHTML = `<strong>${m.approved}</strong> of <strong>${m.total}</strong> approved · ${esc(p.range)}`;
-  const dates = [...new Set(sortedPosts().map(p=>p.date).filter(Boolean))];
-  const strip = $('#calendarStrip');
-  if(strip) strip.innerHTML = dates.map(d => {
-    const date = new Date(`${d}T00:00:00`);
-    const label = Number.isNaN(date.getTime()) ? d : date.toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric' });
-    const count = state.posts.filter(p=>p.date===d).length;
-    return `<div class="day-pill"><small>${esc(label)}</small>${count} post${count === 1 ? '' : 's'}</div>`;
-  }).join('');
-}
-
-function renderStatus(){
-  const list = $('#statusList'); if(!list) return;
-  list.innerHTML = sortedPosts().map(p => `
-    <div class="status-row">
-      <div>
-        <strong>${esc(p.platform)} · ${esc(p.date)}</strong>
-        <p>${esc((p.caption || '').slice(0, 130))}${(p.caption || '').length > 130 ? '…' : ''}</p>
-      </div>
-      <span class="status ${statusClass(p.status)}">${esc(validStatus(p.status))}</span>
-      <strong>${(p.comments || []).length} comments</strong>
-    </div>`).join('') || `<div class="note">No posts yet.</div>`;
-}
-
-function setView(view){
-  $$('.view').forEach(v => v.classList.toggle('active', v.id === view));
-  $$('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === view));
-  $('#sideNav')?.classList.remove('open');
-  if(view === 'clientView') renderReviewHeader();
-}
-
-function parseCsvLine(line){
-  const out = []; let current = ''; let quoted = false;
-  for(let i=0;i<line.length;i++){
-    const ch = line[i], next = line[i+1];
-    if(ch === '"' && quoted && next === '"'){ current += '"'; i++; continue; }
-    if(ch === '"'){ quoted = !quoted; continue; }
-    if(ch === ',' && !quoted){ out.push(current.trim()); current=''; continue; }
-    current += ch;
-  }
-  out.push(current.trim());
-  return out;
-}
-
-function importCsv(text){
-  const lines = text.trim().split(/\r?\n/).filter(Boolean);
-  if(lines.length < 2) return [];
-  const headers = parseCsvLine(lines[0]).map(h => h.trim().toLowerCase());
-  return lines.slice(1).map((line) => {
-    const vals = parseCsvLine(line);
-    const row = Object.fromEntries(headers.map((h,i)=>[h, vals[i] || '']));
-    return {
-      id: uid('csv'),
-      date: row.date || row['publish date'] || row['scheduled date'] || new Date().toISOString().slice(0,10),
-      time: row.time || '9:00 AM',
-      platform: row.platform || row.channel || 'Instagram',
-      caption: row.caption || row.copy || row.text || 'Imported post caption',
-      mediaUrl: row.mediaurl || row['media url'] || row.asset || row.link || '',
-      status: validStatus(row.status || 'Review'),
-      note: row.note || row.notes || '',
-      comments: []
-    };
-  });
-}
-
-function addPost(post={}){
-  state.posts.push({
-    id: uid('manual'), date: post.date || new Date(Date.now()+86400000).toISOString().slice(0,10), time: post.time || '9:00 AM',
-    platform: post.platform || 'Instagram', caption: post.caption || 'New planned post goes here.', mediaUrl: post.mediaUrl || '', status: post.status || 'Draft', note: post.note || '', comments: post.comments || []
-  });
-  renderPosts();
-}
-
-function openEdit(id){
-  const p = state.posts.find(x=>x.id===id); if(!p) return;
-  $('#editId').value = p.id; $('#editDate').value = p.date || ''; $('#editTime').value = p.time || '';
-  $('#editPlatform').value = p.platform || ''; $('#editStatus').value = validStatus(p.status);
-  $('#editCaption').value = p.caption || ''; $('#editMediaUrl').value = p.mediaUrl || ''; $('#editNote').value = p.note || '';
-  $('#editDialog').showModal();
-}
-
-function saveEdit(){
-  const id = $('#editId').value;
-  state.posts = state.posts.map(p => p.id === id ? { ...p, date:$('#editDate').value, time:$('#editTime').value, platform:$('#editPlatform').value, status:validStatus($('#editStatus').value), caption:$('#editCaption').value, mediaUrl:$('#editMediaUrl').value, note:$('#editNote').value } : p);
-  renderPosts(); toast('Post updated');
-}
-
-function updatePostStatus(id, status){ state.posts = state.posts.map(p => p.id === id ? { ...p, status: validStatus(status) } : p); renderPosts(); }
-function deletePost(id){ state.posts = state.posts.filter(p => p.id !== id); renderPosts(); }
-function addComment(id, text){ state.posts = state.posts.map(p => p.id === id ? { ...p, comments:[...(p.comments||[]), { author:'Client', text }] } : p); renderPosts(); }
-
-function makeSharePayload(){ return { version: 1, generatedAt: new Date().toISOString(), project: project(), posts: sortedPosts() }; }
-function generateShareLink(){
-  const payload = b64Encode(makeSharePayload());
-  const url = `${location.origin}${location.pathname}#snapshot=${payload}`;
-  state.shareUrl = url;
-  if($('#shareLink')) $('#shareLink').value = url;
-  if($('#copyLink')) $('#copyLink').disabled = false;
-  if($('#openLink')) $('#openLink').disabled = false;
-  setView('shareView');
-  toast('Review link generated');
-  return url;
-}
-
-async function copyShareLink(){
-  const url = state.shareUrl || $('#shareLink')?.value || generateShareLink();
-  try { await navigator.clipboard.writeText(url); toast('Link copied'); }
-  catch { $('#shareLink')?.select(); document.execCommand('copy'); toast('Link copied'); }
-}
-
-function loadSharedSnapshot(){
-  if(!location.hash.startsWith('#snapshot=')) return false;
-  try {
-    const payload = b64Decode(location.hash.replace('#snapshot=',''));
-    if(!payload?.posts) throw new Error('Bad payload');
-    state.posts = payload.posts.map(p => ({ ...p, status: validStatus(p.status), comments: Array.isArray(p.comments) ? p.comments : [] }));
-    setProject(payload.project);
-    document.body.classList.add('shared-mode');
-    setView('clientView');
-    renderPosts();
-    return true;
-  } catch(err) {
-    console.error(err);
-    toast('Snapshot link could not be opened');
-    return false;
-  }
-}
-
-async function importBufferPosts(){
-  const token = $('#bufferToken')?.value || localStorage.getItem(TOKEN_KEY) || '';
-  if(!token.trim()){ $('#bufferStatus').textContent = 'Paste or save a Buffer token first.'; return; }
-  $('#bufferStatus').textContent = 'Importing from Buffer...';
-  try {
-    const res = await fetch('/.netlify/functions/buffer-proxy', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ token }) });
-    const data = await res.json();
-    if(!res.ok) throw new Error(data?.error || 'Buffer import failed');
-    const imported = normalizeBufferResponse(data);
-    if(!imported.length) throw new Error('No scheduled posts found in the proxy response.');
-    state.posts = imported;
-    renderPosts();
-    $('#bufferStatus').textContent = `Imported ${imported.length} posts.`;
-    $('#importDrawer')?.close();
-  } catch(err) {
-    console.error(err);
-    $('#bufferStatus').textContent = err.message || 'Buffer import failed.';
-  }
-}
-
-function normalizeBufferResponse(data){
-  const raw = data?.posts || data?.data?.posts || data?.data?.scheduledPosts || data?.data?.organization?.posts || [];
-  const arr = Array.isArray(raw) ? raw : [];
-  return arr.map((p, i) => {
-    const dateObj = new Date(p.scheduledAt || p.scheduled_at || p.dueAt || p.date || Date.now());
-    const date = Number.isNaN(dateObj.getTime()) ? new Date().toISOString().slice(0,10) : dateObj.toISOString().slice(0,10);
-    const time = Number.isNaN(dateObj.getTime()) ? '9:00 AM' : dateObj.toLocaleTimeString([], { hour:'numeric', minute:'2-digit' });
-    const media = p.mediaUrl || p.media_url || p.thumbnail || p.image || p.assets?.[0]?.url || '';
-    return { id:String(p.id || uid(`buffer-${i}`)), date, time, platform:p.platform || p.channel || p.channelName || 'Buffer', caption:p.text || p.caption || p.content || p.body || 'Buffer post', mediaUrl:media, status:'Review', note:'Imported from Buffer.', comments:[] };
-  });
-}
-
-function bind(){
-  $$('.nav-btn').forEach(btn => btn.addEventListener('click', () => setView(btn.dataset.view)));
-  $('#toggleSide')?.addEventListener('click', () => $('#sideNav')?.classList.toggle('open'));
-  ['sideGenerateLink','mobileGenerateLink','heroGenerateLink','generateLink'].forEach(id => $('#'+id)?.addEventListener('click', generateShareLink));
-  $('#heroClientPreview')?.addEventListener('click', () => setView('clientView'));
-  ['loadSample','sideLoadSample'].forEach(id => $('#'+id)?.addEventListener('click', () => { state.posts = JSON.parse(JSON.stringify(samplePosts)); renderPosts(); toast('Sample posts loaded'); }));
-  $('#addPost')?.addEventListener('click', () => addPost());
-  $('#copyLink')?.addEventListener('click', copyShareLink);
-  $('#openLink')?.addEventListener('click', () => { const url = state.shareUrl || $('#shareLink')?.value || generateShareLink(); window.open(url, '_blank', 'noopener'); });
-  $('#openImportDrawer')?.addEventListener('click', () => $('#importDrawer')?.showModal());
-  $('#csvUpload')?.addEventListener('change', (e) => { const file = e.target.files?.[0]; if(!file) return; const reader = new FileReader(); reader.onload = () => { const imported = importCsv(String(reader.result || '')); if(imported.length){ state.posts = imported; renderPosts(); toast(`Imported ${imported.length} posts`); $('#importDrawer')?.close(); } else toast('CSV had no rows'); }; reader.readAsText(file); });
-  $('#saveToken')?.addEventListener('click', () => { localStorage.setItem(TOKEN_KEY, $('#bufferToken').value || ''); $('#bufferStatus').textContent = 'Token saved locally in this browser.'; });
-  $('#clearToken')?.addEventListener('click', () => { localStorage.removeItem(TOKEN_KEY); if($('#bufferToken')) $('#bufferToken').value=''; $('#bufferStatus').textContent = 'Token cleared.'; });
-  $('#bufferImport')?.addEventListener('click', importBufferPosts);
-  $('#saveEdit')?.addEventListener('click', saveEdit);
-  $('#projectName')?.addEventListener('input', renderSide); $('#rangeLabel')?.addEventListener('input', renderReviewHeader); $('#intro')?.addEventListener('input', renderReviewHeader);
-  $('#filters')?.addEventListener('click', (e) => { const btn = e.target.closest('[data-filter]'); if(!btn) return; state.filter = btn.dataset.filter; $$('#filters .chip').forEach(b => b.classList.toggle('active', b === btn)); renderPosts(); });
-  document.addEventListener('click', (e) => {
-    const card = e.target.closest('.post-card'); if(!card) return;
-    const actionEl = e.target.closest('[data-action]'); if(!actionEl) return;
-    const id = card.dataset.id; const action = actionEl.dataset.action;
-    if(action === 'edit') openEdit(id);
-    else if(action === 'delete') deletePost(id);
-    else if(action === 'approve') updatePostStatus(id, 'Approved');
-    else if(action === 'edits') updatePostStatus(id, 'Needs Edits');
-    else if(action === 'comment') { const input = card.querySelector('[data-comment-input]'); const text = input?.value.trim(); if(text){ addComment(id, text); input.value=''; } }
-    else updatePostStatus(id, action);
-  });
-}
-
-function init(){
-  if($('#bufferToken')) $('#bufferToken').value = localStorage.getItem(TOKEN_KEY) || '';
-  bind();
-  if(!loadSharedSnapshot()) renderPosts();
-}
-
-document.addEventListener('DOMContentLoaded', init);
+(() => {
+  const app = document.getElementById('app');
+  const samplePosts = [
+    {id:uid(),date:'2026-06-03',time:'9:00 AM',platform:'Instagram',caption:'A behind-the-scenes look at the summer campaign setup. The kind of content that says “we planned this” while still feeling human.',mediaUrl:'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=1200&auto=format&fit=crop',note:'Feature this as the first post of the week.'},
+    {id:uid(),date:'2026-06-04',time:'1:30 PM',platform:'LinkedIn',caption:'Most content calendars fail because they organize posts, not decisions. Here is the cleaner way we are sharing what is planned this month.',mediaUrl:'',note:'Good candidate for founder/team voice.'},
+    {id:uid(),date:'2026-06-06',time:'11:15 AM',platform:'TikTok',caption:'POV: the client can see the calendar without asking for a PDF, spreadsheet, screenshot, and one tiny change that ruins everyone’s afternoon.',mediaUrl:'https://images.unsplash.com/photo-1497366754035-f200968a6e72?q=80&w=1200&auto=format&fit=crop',note:'Use trend audio if still relevant.'},
+    {id:uid(),date:'2026-06-07',time:'4:00 PM',platform:'Threads',caption:'Content calendar sharing should not require three Slack threads, two screenshots, and an emotionally damaged spreadsheet.',mediaUrl:'',note:'A little spicy. Keep only if brand voice allows it.'}
+  ];
+  let state = loadState() || {snapshotTitle:'June Client Content Calendar',intro:'Here is the upcoming content plan in one clean view. No screenshots, no spreadsheet archaeology, no “wait, which version is final?” energy.',posts:samplePosts,viewMode:'list',showNotes:true,showMedia:true,generatedLink:''};
+  let editingPostId = null;
+  function uid(){return 'p_'+Math.random().toString(36).slice(2,10)+Date.now().toString(36)}
+  function icon(id){return `<svg><use href="#${id}"></use></svg>`}
+  function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+  function saveState(){try{localStorage.setItem('nms_lite_state_v1',JSON.stringify(state))}catch{}}
+  function loadState(){try{const r=localStorage.getItem('nms_lite_state_v1');return r?JSON.parse(r):null}catch{return null}}
+  function b64urlEncode(obj){const bytes=new TextEncoder().encode(JSON.stringify(obj));let bin='';bytes.forEach(b=>bin+=String.fromCharCode(b));return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/g,'')}
+  function b64urlDecode(str){const norm=String(str||'').replace(/-/g,'+').replace(/_/g,'/');const pad=norm+'='.repeat((4-norm.length%4)%4);const bin=atob(pad);const bytes=Uint8Array.from(bin,c=>c.charCodeAt(0));return JSON.parse(new TextDecoder().decode(bytes))}
+  function sortedPosts(){return [...state.posts].sort((a,b)=>`${a.date||''} ${a.time||''}`.localeCompare(`${b.date||''} ${b.time||''}`))}
+  function snapshotPayload(){return {title:state.snapshotTitle,intro:state.intro,showNotes:state.showNotes,showMedia:state.showMedia,viewMode:state.viewMode,posts:sortedPosts().map(p=>({date:p.date,time:p.time,platform:p.platform,caption:p.caption,mediaUrl:p.mediaUrl,note:p.note})),createdAt:new Date().toISOString()}}
+  function generateLink(){state.generatedLink=`${location.origin}${location.pathname}#snapshot=${b64urlEncode(snapshotPayload())}`;saveState();renderApp();toast('Snapshot link generated')}
+  async function copyLink(){if(!state.generatedLink)generateLink();try{await navigator.clipboard.writeText(state.generatedLink);toast('Copied link')}catch{toast('Copy failed. The link is visible.')}}
+  function openGeneratedLink(){if(!state.generatedLink)generateLink();window.open(state.generatedLink,'_blank','noopener,noreferrer')}
+  function dateParts(s){const d=new Date(`${s}T00:00:00`);if(Number.isNaN(d.getTime()))return{mo:'TBD',day:'--',full:s||'Unscheduled'};return{mo:d.toLocaleDateString(undefined,{month:'short'}),day:d.toLocaleDateString(undefined,{day:'numeric'}),full:d.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}}
+  function counts(){return state.posts.reduce((a,p)=>(a[p.platform]=(a[p.platform]||0)+1,a),{})}
+  function rangeLabel(posts=state.posts){const dates=posts.map(p=>p.date).filter(Boolean).sort();if(!dates.length)return'No dates yet';const f=new Date(`${dates[0]}T00:00:00`),l=new Date(`${dates.at(-1)}T00:00:00`);if(Number.isNaN(f)||Number.isNaN(l))return'Dates imported';const fmt=d=>d.toLocaleDateString(undefined,{month:'short',day:'numeric'});return`${fmt(f)} – ${fmt(l)}`}
+  function renderApp(){const hash=new URLSearchParams(location.hash.slice(1));const snap=hash.get('snapshot');if(snap)return renderPublicSnapshot(snap);const c=counts();const platformText=Object.keys(c).slice(0,4).map(p=>`${p}: ${c[p]}`).join(' · ')||'No platforms yet';app.innerHTML=`
+    <div class="shell"><aside class="side"><div class="brand"><div class="logo">${icon('i-calendar')}</div><div><p class="brand-title">No More Screenshots</p><p class="brand-tag">Shareable calendar links</p></div></div><div class="side-card"><p class="side-label">Simple promise</p><p class="side-copy">Import posts, clean up the view, generate one read-only link.</p></div><button class="btn primary full" data-action="generate">${icon('i-link')} Generate link</button><button class="btn full" data-action="import">${icon('i-upload')} Import posts</button><button class="btn ghost full" data-action="add">${icon('i-plus')} Add post</button><div class="side-card"><p class="side-label">Current Snapshot</p><p class="side-copy"><strong>${esc(state.posts.length)}</strong> posts · ${esc(rangeLabel())}</p><p class="side-copy" style="margin-top:8px;">${esc(platformText)}</p></div><div class="side-card"><p class="side-label">Not in this MVP</p><p class="side-copy">Approvals, comments, deal tracking, and proof-of-work stay in Receipts.</p></div></aside>
+    <main class="main"><section class="hero"><div class="panel hero-copy"><div class="eyebrow"><span class="dot"></span> Demo v1 — simplified</div><h1>Turn your content calendar into a clean shareable link.</h1><p class="hero-p">No client login. No approval workflow. No “which screenshot is newest?” Just posts in, polished calendar link out.</p><p class="hero-mini">Start with sample data, upload a CSV, add posts manually, or test the Buffer import scaffold.</p><div class="btn-row"><button class="btn primary" data-action="import">${icon('i-upload')} Import posts</button><button class="btn green" data-action="generate">${icon('i-link')} Generate Snapshot</button><button class="btn ghost" data-action="preview">${icon('i-eye')} Preview</button></div></div><div class="panel snapshot-box"><div><h2>Your share link</h2><p>Generate a static demo link you can open or send. It carries the Snapshot data in the URL for this MVP.</p><div class="link-preview">${state.generatedLink?esc(state.generatedLink):'No link generated yet.'}</div></div><div class="btn-row"><button class="btn primary" data-action="copy">${icon('i-copy')} Copy link</button><button class="btn ghost" data-action="openLink">${icon('i-eye')} Open link</button></div></div></section>
+    <section class="panel controls"><input class="input" id="snapshotTitle" value="${esc(state.snapshotTitle)}" placeholder="Snapshot title"/><input class="input" id="snapshotIntro" value="${esc(state.intro)}" placeholder="Short intro message"/><select class="select" id="viewMode"><option value="list" ${state.viewMode==='list'?'selected':''}>List view</option><option value="calendar" ${state.viewMode==='calendar'?'selected':''}>Calendar view</option></select><button class="btn small" data-action="saveSettings">${icon('i-check')} Save</button></section>
+    <section class="workspace"><div class="panel section-card"><div class="section-head"><div><h2 class="section-title">Posts</h2><p class="section-desc">This is the owner view. Clean, editable, and obvious.</p></div><button class="btn small ghost" data-action="add">${icon('i-plus')} Add</button></div><div class="stats"><div class="stat"><strong>${state.posts.length}</strong><span>Posts</span></div><div class="stat"><strong>${Object.keys(c).length}</strong><span>Platforms</span></div><div class="stat"><strong>${esc(rangeLabel())}</strong><span>Range</span></div></div>${renderPostList(false)}</div><div class="panel section-card"><div class="section-head"><div><h2 class="section-title">Snapshot preview</h2><p class="section-desc">What your shared read-only link will look like.</p></div><div class="toggle-row" style="margin-top:0;"><label class="toggle"><input type="checkbox" id="showMedia" ${state.showMedia?'checked':''}/> Media</label><label class="toggle"><input type="checkbox" id="showNotes" ${state.showNotes?'checked':''}/> Notes</label></div></div>${state.viewMode==='calendar'?renderCalendar(state.posts):renderPostList(true)}</div></section></main></div>${renderImportDrawer()}${renderEditModal()}<div class="toast" id="toast"></div>`;bindEvents()}
+  function renderPostList(readOnly){const posts=sortedPosts();if(!posts.length)return`<div class="empty-state">No posts yet. Import a CSV, load sample data, or add one manually.</div>`;return`<div class="post-list">${posts.map(p=>{const d=dateParts(p.date),showMedia=readOnly?state.showMedia:true,showNotes=readOnly?state.showNotes:true;return`<article class="post-card"><div class="post-inner"><div class="date-tile"><span class="mo">${esc(d.mo)}</span><span class="day">${esc(d.day)}</span></div><div><div class="post-meta"><span class="pill platform">${esc(p.platform||'Platform')}</span><span class="pill">${esc(d.full)} · ${esc(p.time||'Time TBD')}</span>${p.mediaUrl?`<span class="pill">Media linked</span>`:''}</div><p class="post-caption">${esc(p.caption||'No caption yet.')}</p>${showNotes&&p.note?`<p class="post-note">${esc(p.note)}</p>`:''}${!readOnly?`<div class="post-actions"><button class="btn small ghost" data-action="edit" data-id="${esc(p.id)}">Edit</button><button class="btn small ghost" data-action="delete" data-id="${esc(p.id)}">Delete</button></div>`:''}</div></div>${showMedia&&p.mediaUrl?`<img class="media-thumb" src="${esc(p.mediaUrl)}" alt="Media preview" loading="lazy" onerror="this.style.display='none'"/>`:''}</article>`}).join('')}</div>`}
+  function renderCalendar(posts){const sorted=[...posts].filter(p=>p.date).sort((a,b)=>a.date.localeCompare(b.date));if(!sorted.length)return`<div class="empty-state">Add dated posts to see the calendar preview.</div>`;const first=new Date(`${sorted[0].date}T00:00:00`),y=first.getFullYear(),m=first.getMonth(),start=new Date(y,m,1),end=new Date(y,m+1,0),cells=[];for(let i=0;i<start.getDay();i++)cells.push(null);for(let day=1;day<=end.getDate();day++)cells.push(new Date(y,m,day));const by=sorted.reduce((a,p)=>((a[p.date] ||= []).push(p),a),{});return`<div class="calendar">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>`<div class="dow">${d}</div>`).join('')}${cells.map(d=>{if(!d)return`<div class="day-cell empty"></div>`;const key=d.toISOString().slice(0,10),items=by[key]||[];return`<div class="day-cell"><div class="day-number">${d.getDate()}</div>${items.slice(0,3).map(p=>`<div class="day-post">${esc(p.platform)} · ${esc(p.caption).slice(0,54)}${p.caption.length>54?'…':''}</div>`).join('')}${items.length>3?`<div class="day-post">+${items.length-3} more</div>`:''}</div>`}).join('')}</div>`}
+  function renderImportDrawer(){return`<div class="drawer-backdrop" id="drawerBackdrop"></div><aside class="drawer" id="importDrawer"><div class="drawer-head"><div><h2>Import posts</h2><p class="section-desc">Start simple. The MVP only needs posts to show and share.</p></div><button class="btn small ghost" data-action="closeDrawer">${icon('i-x')}</button></div><div class="drawer-body"><div class="import-option"><h3>Sample data</h3><p>Load a fake content calendar so you can test the Snapshot flow immediately.</p><button class="btn primary" data-action="sample">Load sample posts</button></div><div class="import-option"><h3>CSV upload</h3><p>Use columns like date, time, platform, caption, mediaUrl, and note.</p><label class="btn primary" for="csvFile">${icon('i-upload')} Upload CSV</label><input class="file-input" type="file" id="csvFile" accept=".csv"/><p style="margin-top:10px;"><a href="./sample-calendar.csv" download>Download sample CSV</a></p></div><div class="import-option"><h3>Buffer import scaffold</h3><p>Paste a Buffer token/API key if available and test importing scheduled posts.</p><div class="field"><label for="bufferToken">Buffer token</label><input class="input" id="bufferToken" type="password" placeholder="Paste token for demo import"/></div><button class="btn" style="margin-top:10px;" data-action="bufferImport">${icon('i-buffer')} Try Buffer import</button><p style="margin-top:10px;font-size:.84rem;">If this fails, sample/CSV still work.</p></div></div></aside>`}
+  function renderEditModal(){const p=state.posts.find(x=>x.id===editingPostId)||{id:'',date:'',time:'',platform:'Instagram',caption:'',mediaUrl:'',note:''};return`<div class="modal-backdrop" id="modalBackdrop"></div><section class="modal ${editingPostId!==null?'open':''}" id="editModal"><div class="modal-head"><div><h2>${p.id?'Edit post':'Add post'}</h2><p class="section-desc">Keep it readable. The shared view is the product.</p></div><button class="btn small ghost" data-action="closeModal">${icon('i-x')}</button></div><div class="modal-body"><div class="form-grid"><div class="field"><label>Date</label><input class="input" id="editDate" type="date" value="${esc(p.date)}"/></div><div class="field"><label>Time</label><input class="input" id="editTime" value="${esc(p.time)}" placeholder="9:00 AM"/></div><div class="field"><label>Platform</label><select class="select" id="editPlatform">${['Instagram','LinkedIn','TikTok','Facebook','Threads','X','YouTube Shorts','Pinterest'].map(v=>`<option ${p.platform===v?'selected':''}>${v}</option>`).join('')}</select></div><div class="field"><label>Media URL</label><input class="input" id="editMedia" value="${esc(p.mediaUrl)}" placeholder="https://..."/></div><div class="field full"><label>Caption</label><textarea class="textarea" id="editCaption">${esc(p.caption)}</textarea></div><div class="field full"><label>Optional note</label><input class="input" id="editNote" value="${esc(p.note)}" placeholder="Context for the shared calendar"/></div></div><div class="btn-row" style="justify-content:flex-end;"><button class="btn ghost" data-action="closeModal">Cancel</button><button class="btn primary" data-action="savePost">${icon('i-check')} Save post</button></div></div></section>`}
+  function bindEvents(){document.querySelectorAll('[data-action]').forEach(b=>b.addEventListener('click',handleAction));document.getElementById('snapshotTitle')?.addEventListener('input',e=>{state.snapshotTitle=e.target.value;saveState()});document.getElementById('snapshotIntro')?.addEventListener('input',e=>{state.intro=e.target.value;saveState()});document.getElementById('viewMode')?.addEventListener('change',e=>{state.viewMode=e.target.value;saveState();renderApp()});document.getElementById('showMedia')?.addEventListener('change',e=>{state.showMedia=e.target.checked;saveState();renderApp()});document.getElementById('showNotes')?.addEventListener('change',e=>{state.showNotes=e.target.checked;saveState();renderApp()});document.getElementById('csvFile')?.addEventListener('change',handleCsvFile);document.getElementById('drawerBackdrop')?.addEventListener('click',closeDrawer);document.getElementById('modalBackdrop')?.addEventListener('click',closeModal)}
+  function handleAction(e){const a=e.currentTarget.dataset.action,id=e.currentTarget.dataset.id;if(a==='import')return openDrawer();if(a==='closeDrawer')return closeDrawer();if(a==='generate')return generateLink();if(a==='copy')return copyLink();if(a==='openLink')return openGeneratedLink();if(a==='preview')return renderPublicPayload(snapshotPayload(),true);if(a==='sample'){state.posts=samplePosts.map(p=>({...p,id:uid()}));closeDrawer();saveState();renderApp();return toast('Sample posts loaded')}if(a==='add'){editingPostId='';return renderApp()}if(a==='edit'){editingPostId=id;return renderApp()}if(a==='delete'){state.posts=state.posts.filter(p=>p.id!==id);saveState();return renderApp()}if(a==='closeModal')return closeModal();if(a==='savePost')return savePost();if(a==='saveSettings'){state.snapshotTitle=document.getElementById('snapshotTitle').value;state.intro=document.getElementById('snapshotIntro').value;saveState();return toast('Snapshot settings saved')}if(a==='bufferImport')return tryBufferImport()}
+  function openDrawer(){document.getElementById('drawerBackdrop')?.classList.add('open');document.getElementById('importDrawer')?.classList.add('open')}function closeDrawer(){document.getElementById('drawerBackdrop')?.classList.remove('open');document.getElementById('importDrawer')?.classList.remove('open')}function closeModal(){editingPostId=null;renderApp()}
+  function savePost(){const ex=state.posts.find(p=>p.id===editingPostId);const p={id:ex?.id||uid(),date:document.getElementById('editDate').value,time:document.getElementById('editTime').value,platform:document.getElementById('editPlatform').value,mediaUrl:document.getElementById('editMedia').value,caption:document.getElementById('editCaption').value,note:document.getElementById('editNote').value};state.posts=ex?state.posts.map(x=>x.id===ex.id?p:x):[...state.posts,p];editingPostId=null;saveState();renderApp();toast('Post saved')}
+  function csvRows(text){const rows=[];let row=[],cell='',q=false;for(let i=0;i<text.length;i++){const ch=text[i],nx=text[i+1];if(ch==='"'&&q&&nx==='"'){cell+='"';i++}else if(ch==='"')q=!q;else if(ch===','&&!q){row.push(cell.trim());cell=''}else if((ch==='\n'||ch==='\r')&&!q){if(ch==='\r'&&nx==='\n')i++;row.push(cell.trim());rows.push(row);row=[];cell=''}else cell+=ch}if(cell||row.length){row.push(cell.trim());rows.push(row)}return rows}
+  function parseCsv(text){const rows=csvRows(text);if(rows.length<2)return[];const h=rows[0].map(x=>x.trim().toLowerCase());return rows.slice(1).filter(r=>r.some(Boolean)).map(r=>{const d={};h.forEach((k,i)=>d[k]=r[i]||'');return{id:uid(),date:d.date||d['publish date']||d['scheduled date']||d.scheduled||'',time:d.time||d['publish time']||'',platform:d.platform||d.channel||'Instagram',caption:d.caption||d.copy||d.text||d.post||'',mediaUrl:d.mediaurl||d['media url']||d.asset||d.link||'',note:d.note||d.notes||d.context||''}})}
+  function handleCsvFile(e){const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=()=>{const imported=parseCsv(String(r.result||''));if(!imported.length)return toast('No posts found in that CSV');state.posts=imported;saveState();closeDrawer();renderApp();toast(`${imported.length} posts imported`)};r.readAsText(f)}
+  async function tryBufferImport(){const token=document.getElementById('bufferToken')?.value?.trim();if(!token)return toast('Paste a Buffer token first');try{const res=await fetch('/.netlify/functions/buffer-proxy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})});const data=await res.json();if(!res.ok)throw new Error(data.error||'Buffer import failed');const imported=(data.posts||[]).map(x=>{const dt=x.scheduled_at?new Date(x.scheduled_at):null;return{id:uid(),date:dt&&!Number.isNaN(dt)?dt.toISOString().slice(0,10):'',time:dt&&!Number.isNaN(dt)?dt.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}):'',platform:x.platform||x.channel||'Buffer',caption:x.text||x.caption||'',mediaUrl:x.mediaUrl||'',note:x.channel_name?`Imported from Buffer channel: ${x.channel_name}`:'Imported from Buffer.'}});if(!imported.length)throw new Error('No posts');state.posts=imported;saveState();closeDrawer();renderApp();toast(`${imported.length} Buffer posts imported`)}catch(err){console.error(err);toast('Buffer import did not work yet. Sample/CSV still work.')}}
+  function renderPublicSnapshot(encoded){try{return renderPublicPayload(b64urlDecode(encoded),false)}catch{app.innerHTML=`<div class="public-wrap"><section class="panel public-head"><span class="public-kicker">Snapshot unavailable</span><h1 class="public-title">This link could not load.</h1><p class="public-intro">The Snapshot data may be missing or the URL was cut off.</p><button class="btn primary" onclick="location.hash=''">Back to app</button></section></div>`}}
+  function renderPublicPayload(payload,isPreview){const old=state;state={...state,snapshotTitle:payload.title||'Content Calendar',intro:payload.intro||'',posts:Array.isArray(payload.posts)?payload.posts.map(p=>({...p,id:uid()})):[],showNotes:payload.showNotes!==false,showMedia:payload.showMedia!==false,viewMode:payload.viewMode||'list'};app.innerHTML=`<div class="public-wrap"><section class="panel public-head"><span class="public-kicker">${isPreview?'Preview mode':'Shared Snapshot'}</span><h1 class="public-title">${esc(state.snapshotTitle)}</h1>${state.intro?`<p class="public-intro">${esc(state.intro)}</p>`:''}${isPreview?`<div class="btn-row"><button class="btn primary" id="backToBuilder">Back to builder</button><button class="btn ghost" id="makeLinkFromPreview">${icon('i-link')} Generate link</button></div>`:''}</section><section class="panel section-card"><div class="section-head"><div><h2 class="section-title">Content plan</h2><p class="section-desc">${esc(state.posts.length)} posts · ${esc(rangeLabel(state.posts))}</p></div></div>${state.viewMode==='calendar'?renderCalendar(state.posts):renderPostList(true)}</section><p class="public-footer">Shared with No More Screenshots — a clean calendar link instead of screenshot gymnastics.</p></div><div class="toast" id="toast"></div>`;state=old;document.getElementById('backToBuilder')?.addEventListener('click',renderApp);document.getElementById('makeLinkFromPreview')?.addEventListener('click',generateLink)}
+  function toast(msg){const t=document.getElementById('toast');if(!t)return;t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600)}
+  window.addEventListener('hashchange',renderApp);renderApp();
+})();
