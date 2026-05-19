@@ -200,20 +200,46 @@ function shareSnapshot() {
   const encoded = toBase64Url(JSON.stringify(payload));
   state.shareLink = location.origin + location.pathname + '#share=' + payload.snapshotId + '.' + encoded;
   saveState();
-  renderApp();
-  showToast('Snapshot link ready');
+  showToast('Snapshot ready.');
   return state.shareLink;
 }
 
+function shareSnapshotIdFromLink(link) {
+  const raw = String(link || '').split('#share=')[1] || '';
+  const dot = raw.indexOf('.');
+  return dot >= 0 ? raw.slice(0, dot) : raw;
+}
+
+function shareUiHtml(link = state.shareLink || '') {
+  const hasLink = !!link;
+  const label = shareSnapshotIdFromLink(link) || 'Generate a snapshot link';
+  return `
+    <div id="shareSuccess" class="share-success ${hasLink ? 'show' : ''}">
+      <div class="share-success-title">Snapshot ready.</div>
+      <div class="share-success-copy">Send this link instead of screenshots.</div>
+    </div>
+    <div class="share-ready-card ${hasLink ? 'show' : ''}" id="shareReadyCard">
+      <div class="share-link-label">Share link</div>
+      <div class="share-friendly-id">${safeText(label)}</div>
+      <div class="row">
+        <button class="btn" id="copyShare" ${hasLink ? '' : 'disabled'}>Copy Link</button>
+        <button class="btn ghost" id="openShare" ${hasLink ? '' : 'disabled'}>Open Preview</button>
+      </div>
+    </div>
+    <button class="btn ghost share-disclosure" id="toggleFullLink" ${hasLink ? '' : 'disabled'}>${hasLink ? 'Show full link' : 'Generate a link to view it'}</button>
+    <div class="share-full-link" id="shareFullLink">${safeText(link)}</div>
+  `;
+}
+
 async function copyShareLink() {
-  const link = state.shareLink || shareSnapshot();
-  const ok = await copyTextSafe(link);
-  showToast(ok ? 'Copied link' : 'Could not copy link');
+  if (!state.shareLink) return;
+  const ok = await copyTextSafe(state.shareLink);
+  showToast(ok ? 'Snapshot link copied.' : 'Could not copy link');
 }
 
 function openShareLink() {
-  const link = state.shareLink || shareSnapshot();
-  window.open(link, '_blank', 'noopener,noreferrer');
+  if (!state.shareLink) return;
+  window.open(state.shareLink, '_blank', 'noopener,noreferrer');
 }
 
 function parseSharedSnapshotFromHash() {
@@ -406,14 +432,11 @@ function modalHtml() {
           <input type="checkbox" id="includeNotes" ${state.includeNotes ? 'checked' : ''} />
           Include planning notes
         </label>
-        <p class="share-explainer">This creates a read-only calendar link. No login required.</p>
-        <div class="row">
-          <button class="btn primary" id="generateShare">Generate Link</button>
-          <button class="btn" id="copyShare">Copy Link</button>
-          <button class="btn ghost" id="openShare">Open Preview</button>
+        <div class="share-primary-action">
+          <button class="btn primary" id="generateShare">${state.shareLink ? 'Generate New Link' : 'Generate Snapshot Link'}</button>
+          <p class="share-explainer">Creates a read-only calendar link. No login required.</p>
         </div>
-        <div id="shareSuccess" class="share-success ${state.shareLink ? 'show' : ''}">Snapshot ready. Send this link instead of screenshots.</div>
-        <div class="share-link-box" id="shareLinkBox">${safeText(state.shareLink || 'Generate a link first.')}</div>
+        <div id="shareUiWrap">${shareUiHtml(state.shareLink || '')}</div>
       </div>
     </div>
 
@@ -499,11 +522,11 @@ function bindEvents() {
     state.message = qs('shareMessage').value.trim();
     state.includeNotes = qs('includeNotes').checked;
     const link = shareSnapshot();
-    qs('shareLinkBox').textContent = link;
-    qs('shareSuccess')?.classList.add('show');
+    qs('generateShare').textContent = 'Generate New Link';
+    qs('shareUiWrap').innerHTML = shareUiHtml(link);
+    bindShareActions();
   });
-  qs('copyShare')?.addEventListener('click', copyShareLink);
-  qs('openShare')?.addEventListener('click', openShareLink);
+  bindShareActions();
   qs('savePost')?.addEventListener('click', savePostFromModal);
   qs('saveNote')?.addEventListener('click', saveNoteFromModal);
 }
@@ -825,3 +848,14 @@ function openSharedDayDetails(key, data) {
 
 window.addEventListener('hashchange', renderApp);
 renderApp();
+
+function bindShareActions() {
+  qs('copyShare')?.addEventListener('click', copyShareLink);
+  qs('openShare')?.addEventListener('click', openShareLink);
+  qs('toggleFullLink')?.addEventListener('click', () => {
+    const box = qs('shareFullLink');
+    if (!box) return;
+    box.classList.toggle('show');
+    qs('toggleFullLink').textContent = box.classList.contains('show') ? 'Hide full link' : 'Show full link';
+  });
+}
